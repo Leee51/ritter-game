@@ -1141,9 +1141,15 @@ function LobbyScreen({ players, setPlayers, onStartGame, onShop }: {
       {/* ── TISCH — flex center ── */}
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
         <View style={{ width: tableSize, height: tableH }}>
-          <Image source={IMG.tables[tableLevel]}
-            style={{ width: '100%', height: '100%', position: 'absolute', blendMode: 'multiply' } as any}
-            resizeMode="contain" />
+          {/* Tischbild: weißer PNG-Hintergrund wird durch Clipping der Ecken entfernt */}
+          <View style={{
+            position: 'absolute', width: '100%', height: '100%',
+            overflow: 'hidden', borderRadius: tableSize * 0.13,
+          }}>
+            <Image source={IMG.tables[tableLevel]}
+              style={{ width: '100%', height: '100%' }}
+              resizeMode="contain" />
+          </View>
 
           {/* Spiele auf der Tischfläche — leicht rotiert */}
           {GAMES.map((game, gi) => {
