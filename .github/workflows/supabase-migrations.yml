@@ -18,8 +18,12 @@ jobs:
         with:
           version: latest
 
-      - name: Push migrations via DB URL
-        run: |
-          supabase db push \
-            --db-url "postgresql://postgres:${{ secrets.SUPABASE_DB_PASSWORD }}@db.teiyrvoisdzvttrqslgk.supabase.co:5432/postgres"
+      - name: Link project
+        run: supabase link --project-ref teiyrvoisdzvttrqslgk
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        working-directory: ritter-app
+
+      - name: Push migrations
+        run: supabase db push --db-url "${{ secrets.SUPABASE_DB_URL }}"
         working-directory: ritter-app
