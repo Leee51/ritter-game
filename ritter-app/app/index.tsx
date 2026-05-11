@@ -1129,8 +1129,8 @@ function LobbyScreen({ players, setPlayers, onStartGame, onShop }: {
         </View>
       </View>
 
-      {/* ── TISCH — flex center ── */}
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+      {/* ── TISCH — flex center, leicht nach oben verschoben ── */}
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: tableH * 0.13 }}>
         <View style={{ width: tableSize, height: tableH }}>
           <Image source={IMG.table}
             style={{ width: '100%', height: '100%', position: 'absolute' }}
