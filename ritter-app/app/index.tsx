@@ -180,14 +180,16 @@ const GAMES = [
   { id: 'kutschen',      name: 'Kutschen Fahrt', locked: true,  tablePos: { top: 0.46, left: 0.37 } },
 ];
 
-// Positionen rund um den stuhlfreien Tisch (1024×1536 Bild, transparent)
+// Positionen an den Kantenmittelpunkten des 1024×1536 Oktagon-Tisches
+// HOST: px(512,920) | Links: px(75,587) | OL: px(145,370)
+// OM: px(512,240)  | OR: px(880,370)   | Rechts: px(950,587)
 const SEATS: { top: number; left: number; view: 'front' | 'back' | 'left' | 'right' }[] = [
-  { top: 0.72, left: 0.50, view: 'back'  }, // HOST (vorne-mitte)
-  { top: 0.41, left: 0.06, view: 'right' }, // links
-  { top: 0.22, left: 0.18, view: 'right' }, // oben-links
-  { top: 0.14, left: 0.50, view: 'front' }, // oben-mitte
-  { top: 0.22, left: 0.82, view: 'left'  }, // oben-rechts
-  { top: 0.41, left: 0.94, view: 'left'  }, // rechts
+  { top: 0.599, left: 0.500, view: 'back'  }, // HOST (vorne-mitte)
+  { top: 0.382, left: 0.080, view: 'right' }, // links
+  { top: 0.234, left: 0.141, view: 'right' }, // oben-links
+  { top: 0.156, left: 0.500, view: 'front' }, // oben-mitte
+  { top: 0.234, left: 0.859, view: 'left'  }, // oben-rechts
+  { top: 0.382, left: 0.920, view: 'left'  }, // rechts
 ];
 
 // ═══════════════════════════════════════════════════
@@ -330,7 +332,7 @@ function SeatCharacter({ player, view }: { player: NonNullable<Player>; view: 'f
           hair={player.hair}
           hairStyle={player.hairStyle ?? 0}
           beard={player.beard}
-          size={42}
+          size={84}
           view={view}
         />
       </View>
@@ -1159,7 +1161,7 @@ function LobbyScreen({ players, setPlayers, onStartGame, onShop }: {
           {/* Spieler an Sitzen — über die Stühle im Tischbild */}
           {SEATS.map((pos, i) => {
             const player = players[i];
-            const hitW = 56, hitH = 62;
+            const hitW = 70, hitH = 110;
             return (
               <TouchableOpacity
                 key={i}
