@@ -5,6 +5,7 @@ import {
   StatusBar, Image, ImageBackground,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
+import HeisseFackel from './HeisseFackel';
 
 const { width } = Dimensions.get('window');
 
@@ -181,13 +182,13 @@ const GAMES = [
   { id: 'kutschen',      name: 'Kutschen Fahrt', locked: true,  tablePos: { top: 0.52, left: 0.35 } },
 ];
 
-const SEATS = [
-  { top: 0.74, left: 0.50 },
-  { top: 0.57, left: 0.12 },
-  { top: 0.26, left: 0.08 },
-  { top: 0.06, left: 0.50 },
-  { top: 0.26, left: 0.88 },
-  { top: 0.57, left: 0.86 },
+const SEATS: { top: number; left: number; view: 'front' | 'back' | 'left' | 'right' }[] = [
+  { top: 0.76, left: 0.50, view: 'back'  }, // host bottom-center (facing away)
+  { top: 0.60, left: 0.10, view: 'right' }, // left side
+  { top: 0.28, left: 0.06, view: 'front' }, // upper-left
+  { top: 0.05, left: 0.50, view: 'front' }, // top-center
+  { top: 0.28, left: 0.92, view: 'front' }, // upper-right
+  { top: 0.60, left: 0.88, view: 'left'  }, // right side
 ];
 
 function getTableLevel(level: number): keyof typeof IMG.tables {
@@ -215,23 +216,31 @@ function CharPreview({
   const hairImg   = HAIR_IMGS[hair]?.[hairStyle];
   const beardColor = beardColorFromHair(hair);
   const beardImg  = beard !== 'none' ? BEARD_IMGS[beardColor]?.[beard] : null;
+  const hairW     = size * 0.70;
+  const beardW    = size * 0.55;
 
   return (
     <View style={{ width: size, height: size * 1.4, alignItems: 'center' }}>
-      {/* Charakter */}
+      {/* Charakter — front facing */}
       <Image source={charImg}
         style={{ width: size, height: size * 1.3, position: 'absolute', bottom: 0 }}
         resizeMode="contain" />
-      {/* Haar oben */}
+      {/* Haar oben — top-center, no scissors */}
       {hairImg && (
         <Image source={hairImg}
-          style={{ width: size * 0.8, height: size * 0.45, position: 'absolute', top: 0, zIndex: 3 }}
+          style={{ width: hairW, height: size * 0.45, position: 'absolute', top: 0, alignSelf: 'center', zIndex: 3 }}
           resizeMode="contain" />
       )}
-      {/* Bart unten */}
+      {/* Bart — chin level ~58% down from top */}
       {beardImg && (
         <Image source={beardImg}
-          style={{ width: size * 0.65, height: size * 0.45, position: 'absolute', bottom: size * 0.22, zIndex: 3 }}
+          style={{
+            width: beardW, height: size * 0.45,
+            position: 'absolute',
+            top: size * 1.4 * 0.58,
+            alignSelf: 'center',
+            zIndex: 3,
+          }}
           resizeMode="contain" />
       )}
     </View>
@@ -241,7 +250,7 @@ function CharPreview({
 // ═══════════════════════════════════════════════════
 // CHARAKTER AM TISCH
 // ═══════════════════════════════════════════════════
-function SeatCharacter({ player }: { player: NonNullable<Player> }) {
+function SeatCharacter({ player, view }: { player: NonNullable<Player>; view: 'front' | 'back' | 'left' | 'right' }) {
   const hairHex   = HAIR_COLORS.find(h => h.id === player.hair)?.hex ?? '#E8C84A';
   const charImg   = player.path === 'light'
     ? IMG.chars.light[Math.min(player.level - 1, 8)]
@@ -251,6 +260,17 @@ function SeatCharacter({ player }: { player: NonNullable<Player> }) {
   const beardImg  = player.beard !== 'none' ? BEARD_IMGS[beardColor]?.[player.beard] : null;
   const sz = 44;
 
+  // Perspective transforms based on view
+  let charTransform: object[] = [];
+  let charOpacity = 1;
+  if (view === 'back') {
+    charTransform = [{ rotate: '180deg' }];
+    charOpacity = 0.75;
+  } else if (view === 'left') {
+    charTransform = [{ scaleX: -1 }];
+  }
+  // 'front' and 'right': no transform
+
   return (
     <View style={{ alignItems: 'center' }}>
       <View style={{
@@ -259,17 +279,29 @@ function SeatCharacter({ player }: { player: NonNullable<Player> }) {
         width: sz + 4, height: sz * 1.3 + 4,
       }}>
         {/* Charakter */}
-        <Image source={charImg} style={{ width: sz, height: sz * 1.25 }} resizeMode="contain" />
+        <Image
+          source={charImg}
+          style={{ width: sz, height: sz * 1.25, transform: charTransform, opacity: charOpacity }}
+          resizeMode="contain"
+        />
         {/* Haar */}
         {hairImg && (
           <Image source={hairImg}
-            style={{ position: 'absolute', top: 0, alignSelf: 'center', width: sz * 0.75, height: sz * 0.4, zIndex: 3 }}
+            style={{
+              position: 'absolute', top: 0, alignSelf: 'center',
+              width: sz * 0.75, height: sz * 0.4, zIndex: 3,
+              transform: charTransform, opacity: charOpacity,
+            }}
             resizeMode="contain" />
         )}
         {/* Bart */}
         {beardImg && (
           <Image source={beardImg}
-            style={{ position: 'absolute', bottom: sz * 0.18, alignSelf: 'center', width: sz * 0.6, height: sz * 0.35, zIndex: 3 }}
+            style={{
+              position: 'absolute', bottom: sz * 0.18, alignSelf: 'center',
+              width: sz * 0.6, height: sz * 0.35, zIndex: 3,
+              transform: charTransform, opacity: charOpacity,
+            }}
             resizeMode="contain" />
         )}
       </View>
@@ -280,25 +312,104 @@ function SeatCharacter({ player }: { player: NonNullable<Player> }) {
 }
 
 // ═══════════════════════════════════════════════════
+// PROFIL MODAL
+// ═══════════════════════════════════════════════════
+function ProfileModal({ visible, player, onClose }: {
+  visible: boolean;
+  player: NonNullable<Player> | null;
+  onClose: () => void;
+}) {
+  if (!player) return null;
+  const xp = 0;
+  const xpMax = 100;
+  const xpPercent = xp / xpMax;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <View style={s.overlay}>
+        <View style={s.modalBox}>
+          <Text style={s.modalTitle}>{player.name}</Text>
+          <Text style={[s.modalSub, { marginBottom: 16 }]}>
+            {player.path === 'light' ? '☀️ Licht' : '🌑 Schatten'} · Level {player.level}
+          </Text>
+
+          {/* Charakter Vorschau */}
+          <View style={{ alignItems: 'center', marginBottom: 16 }}>
+            <CharPreview
+              path={player.path}
+              hair={player.hair}
+              hairStyle={player.hairStyle ?? 0}
+              beard={player.beard}
+              size={90}
+            />
+          </View>
+
+          {/* XP Bar */}
+          <View style={{ marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+              <Text style={{ fontSize: 9, color: 'rgba(201,168,76,0.5)', letterSpacing: 2 }}>XP</Text>
+              <Text style={{ fontSize: 9, color: 'rgba(201,168,76,0.5)' }}>{xp}/{xpMax}</Text>
+            </View>
+            <View style={{ height: 6, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 3 }}>
+              <View style={{
+                width: `${xpPercent * 100}%`, height: 6,
+                backgroundColor: '#C9A84C', borderRadius: 3,
+              }} />
+            </View>
+          </View>
+
+          {/* Währung */}
+          <View style={{ flexDirection: 'row', gap: 12, justifyContent: 'center', marginBottom: 20 }}>
+            <View style={s.infoBadge}>
+              <Image source={IMG.silver} style={{ width: 16, height: 16, marginRight: 6 }} />
+              <Text style={[s.infoBadgeText, { color: '#C9A84C' }]}>8 450</Text>
+            </View>
+            <View style={s.infoBadge}>
+              <Image source={IMG.gold} style={{ width: 16, height: 16, marginRight: 6 }} />
+              <Text style={[s.infoBadgeText, { color: '#FFD700' }]}>230</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity onPress={onClose} style={[s.confirmBtn, { flex: 0, paddingHorizontal: 32 }]}>
+            <Text style={{ color: '#0A0704', fontWeight: '800', fontSize: 13 }}>SCHLIESSEN</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ═══════════════════════════════════════════════════
 // CHARAKTER-ERSTELLUNGS MODAL
 // ═══════════════════════════════════════════════════
 function CharacterCreationModal({
   visible,
   isMainPlayer,
+  initialStep,
   onConfirm,
   onCancel,
+  onOpenGuest,
 }: {
   visible: boolean;
   isMainPlayer: boolean;
+  initialStep?: 'name' | 'path' | 'hair' | 'beard';
   onConfirm: (data: { name: string; path: 'light' | 'shadow'; hair: HairColor; hairStyle: HairStyle; beard: BeardStyle }) => void;
   onCancel?: () => void;
+  onOpenGuest?: () => void;
 }) {
-  const [step, setStep]         = useState<'name' | 'path' | 'hair' | 'beard'>('name');
+  const [step, setStep]         = useState<'name' | 'path' | 'hair' | 'beard'>(initialStep ?? 'name');
   const [name, setName]         = useState('');
   const [path, setPath]         = useState<'light' | 'shadow'>('light');
   const [hair, setHair]         = useState<HairColor>('blonde');
   const [hairStyle, setHairStyle] = useState<HairStyle>(0);
   const [beard, setBeard]       = useState<BeardStyle>('none');
+
+  // Reset step when modal opens
+  useEffect(() => {
+    if (visible) {
+      setStep(initialStep ?? 'name');
+    }
+  }, [visible]);
 
   // Animation: Seite wechseln
   const slideAnim = useRef(new Animated.Value(0)).current;
@@ -312,7 +423,6 @@ function CharacterCreationModal({
 
   const steps = ['name', 'path', 'hair', 'beard'];
   const stepIdx = steps.indexOf(step);
-  const hairHex = HAIR_COLORS.find(h => h.id === hair)?.hex ?? '#E8C84A';
 
   return (
     <Modal visible={visible} transparent animationType="fade">
@@ -353,8 +463,19 @@ function CharacterCreationModal({
                 >
                   <Text style={s.scrollStartText}>WEITER →</Text>
                 </TouchableOpacity>
+                {/* QR-Code / Gast beitreten */}
+                {onOpenGuest && (
+                  <TouchableOpacity
+                    onPress={() => { onCancel && onCancel(); onOpenGuest(); }}
+                    style={{ marginTop: 12, alignItems: 'center', padding: 10 }}
+                  >
+                    <Text style={{ color: 'rgba(201,168,76,0.6)', fontSize: 12, letterSpacing: 1 }}>
+                      🎫 Mit QR-Code beitreten
+                    </Text>
+                  </TouchableOpacity>
+                )}
                 {!isMainPlayer && onCancel && (
-                  <TouchableOpacity onPress={onCancel} style={{ marginTop: 12, alignItems: 'center' }}>
+                  <TouchableOpacity onPress={onCancel} style={{ marginTop: 8, alignItems: 'center' }}>
                     <Text style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11 }}>Abbrechen</Text>
                   </TouchableOpacity>
                 )}
@@ -364,7 +485,7 @@ function CharacterCreationModal({
             {/* ── SCHRITT 2: Pfad (Licht / Schatten) ── */}
             {step === 'path' && (
               <View>
-                <Text style={s.modalTitle}>☀️ DEIN PFAD 🌑</Text>
+                <Text style={s.modalTitle}>DEIN PFAD</Text>
                 <Text style={s.modalSub}>Diese Wahl ist für immer.</Text>
 
                 <View style={{ flexDirection: 'row', gap: 12, marginTop: 20, marginBottom: 24 }}>
@@ -374,10 +495,10 @@ function CharacterCreationModal({
                       path === 'light' && { borderColor: '#F0C040' }]}
                     onPress={() => setPath('light')}
                   >
+                    <Text style={{ fontSize: 36 }}>☀️</Text>
                     <Image source={IMG.chars.light[0]}
                       style={{ width: 70, height: 90 }} resizeMode="contain" />
                     <Text style={[s.pathCardTitle, { color: '#F0C040' }]}>LICHT</Text>
-                    <Text style={s.pathCardDesc}>Ehre · Mut · Schutz</Text>
                   </TouchableOpacity>
 
                   {/* SCHATTEN */}
@@ -386,10 +507,10 @@ function CharacterCreationModal({
                       path === 'shadow' && { borderColor: '#8B5CF6' }]}
                     onPress={() => setPath('shadow')}
                   >
+                    <Text style={{ fontSize: 36 }}>🌑</Text>
                     <Image source={IMG.chars.shadow[0]}
                       style={{ width: 70, height: 90 }} resizeMode="contain" />
                     <Text style={[s.pathCardTitle, { color: '#8B5CF6' }]}>SCHATTEN</Text>
-                    <Text style={s.pathCardDesc}>List · Macht · Dunkel</Text>
                   </TouchableOpacity>
                 </View>
 
@@ -402,7 +523,7 @@ function CharacterCreationModal({
             {/* ── SCHRITT 3: Haarfarbe & Stil ── */}
             {step === 'hair' && (
               <View>
-                <Text style={s.modalTitle}>💇 HAAR</Text>
+                <Text style={s.modalTitle}>HAAR</Text>
                 <Text style={s.modalSub}>Farbe und Stil — für immer.</Text>
 
                 {/* Vorschau */}
@@ -470,11 +591,11 @@ function CharacterCreationModal({
                   </Text>
                 </View>
 
-                {/* Bart-Auswahl: 2-Spalten Grid mit echten Bildern */}
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                {/* Bart-Auswahl: 4 pro Reihe */}
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16, justifyContent: 'center' }}>
                   {BEARD_STYLES.map(b => {
-                    const beardColor = beardColorFromHair(hair);
-                    const img = b.id !== 'none' ? BEARD_IMGS[beardColor]?.[b.id] : null;
+                    const bColor = beardColorFromHair(hair);
+                    const img = b.id !== 'none' ? BEARD_IMGS[bColor]?.[b.id] : null;
                     return (
                       <TouchableOpacity
                         key={b.id}
@@ -482,9 +603,9 @@ function CharacterCreationModal({
                         style={[s.beardImgBtn, beard === b.id && s.beardImgBtnActive]}
                       >
                         {img ? (
-                          <Image source={img} style={{ width: 52, height: 46 }} resizeMode="contain" />
+                          <Image source={img} style={{ width: 56, height: 50 }} resizeMode="contain" />
                         ) : (
-                          <Text style={{ fontSize: 22 }}>🚫</Text>
+                          <Text style={{ fontSize: 22, lineHeight: 50, textAlign: 'center' }}>❌</Text>
                         )}
                         <Text style={[s.beardImgLabel, beard === b.id && { color: '#C9A84C' }]}>
                           {b.label}
@@ -519,13 +640,28 @@ function CharacterCreationModal({
 export default function App() {
   const [screen, setScreen]         = useState<'lobby' | 'game' | 'shop'>('lobby');
   const [activeGame, setActiveGame] = useState<string | null>(null);
+  const [lobbyPlayers, setLobbyPlayers] = useState<Player[]>([
+    { name: '', path: 'light', level: 3, hair: 'blonde', hairStyle: 0, beard: 'none', customized: false },
+    null, null, null, null, null,
+  ]);
 
   if (screen === 'shop') return <ShopScreen onBack={() => setScreen('lobby')} />;
   if (screen === 'game' && activeGame === 'heisse_fackel') {
-    return <HeisseFackelScreen onBack={() => { setScreen('lobby'); setActiveGame(null); }} />;
+    return (
+      <HeisseFackel
+        players={lobbyPlayers.filter(Boolean).map(p => ({
+          name: p!.name,
+          avatar: p!.path === 'light' ? '☀️' : '🌑',
+          level: p!.level,
+        }))}
+        onBack={() => { setScreen('lobby'); setActiveGame(null); }}
+      />
+    );
   }
   return (
     <LobbyScreen
+      players={lobbyPlayers}
+      setPlayers={setLobbyPlayers}
       onStartGame={(id) => { setActiveGame(id); setScreen('game'); }}
       onShop={() => setScreen('shop')}
     />
@@ -535,27 +671,24 @@ export default function App() {
 // ═══════════════════════════════════════════════════
 // LOBBY
 // ═══════════════════════════════════════════════════
-function LobbyScreen({ onStartGame, onShop }: {
+function LobbyScreen({ players, setPlayers, onStartGame, onShop }: {
+  players: Player[];
+  setPlayers: React.Dispatch<React.SetStateAction<Player[]>>;
   onStartGame: (id: string) => void;
   onShop: () => void;
 }) {
-  const [players, setPlayers] = useState<Player[]>([
-    // Hauptspieler: noch nicht konfiguriert → zeigt sofort den Creator
-    { name: '', path: 'light', level: 3, hair: 'blonde', hairStyle: 0, beard: 'none', customized: false },
-    null, null, null, null, null,
-  ]);
-
   const [creationFor, setCreationFor]   = useState<number | null>(null);
   const [seatInfoFor, setSeatInfoFor]   = useState<number | null>(null);
   const [guestModal, setGuestModal]     = useState(false);
+  const [profileModal, setProfileModal] = useState(false);
   const [scrollModal, setScrollModal]   = useState<typeof GAMES[0] | null>(null);
   const [unlockModal, setUnlockModal]   = useState(false);
   const [difficulty, setDifficulty]     = useState<1|2|3>(1);
   const scrollAnim                      = useRef(new Animated.Value(0)).current;
 
-  // Hauptspieler-Creator beim ersten Start
+  // Hauptspieler-Creator beim ersten Start — only if not yet named/customized
   useEffect(() => {
-    if (players[0] && !players[0].customized) {
+    if (!players[0] || (players[0] && !players[0].customized && players[0].name === '')) {
       setCreationFor(0);
     }
   }, []);
@@ -675,7 +808,7 @@ function LobbyScreen({ onStartGame, onShop }: {
                 }}
               >
                 {player?.customized ? (
-                  <SeatCharacter player={player} />
+                  <SeatCharacter player={player} view={pos.view} />
                 ) : (
                   <View style={s.seatEmpty}>
                     <Text style={s.seatPlus}>+</Text>
@@ -696,7 +829,7 @@ function LobbyScreen({ onStartGame, onShop }: {
             <Image source={IMG.alchemist} style={s.alchemistIcon} resizeMode="contain" />
             <Text style={s.navLabel}>SHOP</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.navBtn}>
+          <TouchableOpacity onPress={() => mainPlayer?.customized && setProfileModal(true)} style={s.navBtn}>
             <Text style={s.navIcon}>👤</Text>
             <Text style={s.navLabel}>PROFIL</Text>
           </TouchableOpacity>
@@ -707,11 +840,20 @@ function LobbyScreen({ onStartGame, onShop }: {
       <CharacterCreationModal
         visible={creationFor !== null}
         isMainPlayer={creationFor === 0}
+        initialStep="name"
         onConfirm={(data) => creationFor !== null && handleCreationConfirm(creationFor, data)}
         onCancel={creationFor !== 0 ? () => setCreationFor(null) : undefined}
+        onOpenGuest={creationFor !== 0 ? () => { setCreationFor(null); setGuestModal(true); } : undefined}
       />
 
-      {/* ══ SITZ INFO (nur anzeigen, nichts änderbar) ══ */}
+      {/* ══ PROFIL MODAL ══ */}
+      <ProfileModal
+        visible={profileModal}
+        player={mainPlayer ?? null}
+        onClose={() => setProfileModal(false)}
+      />
+
+      {/* ══ SITZ INFO ══ */}
       <Modal visible={seatInfoFor !== null} transparent animationType="fade">
         <View style={s.overlay}>
           <View style={s.modalBox}>
@@ -723,7 +865,7 @@ function LobbyScreen({ onStartGame, onShop }: {
                   <Text style={s.modalTitle}>{p.name}</Text>
                   <View style={{ alignItems: 'center', marginBottom: 16 }}>
                     <CharPreview path={p.path} hair={p.hair} hairStyle={p.hairStyle ?? 0} beard={p.beard} size={80} />
-                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
                       <View style={[s.infoBadge, { borderColor: hairHex }]}>
                         <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: hairHex, marginRight: 5 }} />
                         <Text style={[s.infoBadgeText, { color: hairHex }]}>
@@ -732,7 +874,7 @@ function LobbyScreen({ onStartGame, onShop }: {
                       </View>
                       <View style={s.infoBadge}>
                         <Text style={s.infoBadgeText}>
-                          {BEARDS.find(b => b.id === p.beard)?.icon} {BEARDS.find(b => b.id === p.beard)?.label}
+                          {BEARD_STYLES.find(b => b.id === p.beard)?.label}
                         </Text>
                       </View>
                       <View style={[s.infoBadge, { borderColor: p.path === 'light' ? '#F0C040' : '#8B5CF6' }]}>
@@ -847,24 +989,6 @@ function LobbyScreen({ onStartGame, onShop }: {
           </View>
         </View>
       </Modal>
-    </View>
-  );
-}
-
-// ═══════════════════════════════════════════════════
-// HEISZE FACKEL WRAPPER
-// ═══════════════════════════════════════════════════
-function HeisseFackelScreen({ onBack }: { onBack: () => void }) {
-  return (
-    <View style={[s.container, { alignItems: 'center', justifyContent: 'center' }]}>
-      <ImageBackground source={IMG.background} style={StyleSheet.absoluteFill} resizeMode="cover">
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.7)' }]} />
-      </ImageBackground>
-      <Image source={IMG.games.heisse_fackel} style={{ width: 120, height: 120, marginBottom: 20 }} resizeMode="contain" />
-      <Text style={[s.appTitle, { marginBottom: 8 }]}>HEISZE FACKEL</Text>
-      <TouchableOpacity onPress={onBack} style={[s.confirmBtn, { flex: 0, paddingHorizontal: 32 }]}>
-        <Text style={{ color: '#0A0704', fontWeight: '800' }}>← ZURÜCK</Text>
-      </TouchableOpacity>
     </View>
   );
 }
