@@ -177,21 +177,22 @@ export type Player = {
   customized: boolean;
 } | null;
 
+// Items liegen auf der Tischfläche (braune Mitte des Achtecktischs)
 const GAMES = [
-  { id: 'heisse_fackel', name: 'Heiße Fackel', locked: false, tablePos: { top: 0.42, left: 0.22 } },
-  { id: 'werwolf',       name: 'Werwolf',       locked: true,  tablePos: { top: 0.30, left: 0.58 } },
-  { id: 'imposter',      name: 'Imposter',       locked: true,  tablePos: { top: 0.54, left: 0.65 } },
-  { id: 'kutschen',      name: 'Kutschen Fahrt', locked: true,  tablePos: { top: 0.55, left: 0.38 } },
+  { id: 'heisse_fackel', name: 'Heiße Fackel', locked: false, tablePos: { top: 0.46, left: 0.30 } },
+  { id: 'werwolf',       name: 'Werwolf',       locked: true,  tablePos: { top: 0.38, left: 0.60 } },
+  { id: 'imposter',      name: 'Imposter',       locked: true,  tablePos: { top: 0.57, left: 0.62 } },
+  { id: 'kutschen',      name: 'Kutschen Fahrt', locked: true,  tablePos: { top: 0.56, left: 0.34 } },
 ];
 
-// Stühle rund um den Tisch — Positionen relativ zu tableH / tableSize
+// Stühle — transparent über die bereits im Tischbild eingezeichneten Stühle
 const SEATS: { top: number; left: number; view: 'front' | 'back' | 'left' | 'right' }[] = [
-  { top: 0.82, left: 0.50, view: 'back'  }, // unten-mitte  (Host)
-  { top: 0.68, left: 0.08, view: 'right' }, // unten-links
-  { top: 0.22, left: 0.04, view: 'right' }, // oben-links
-  { top: 0.02, left: 0.50, view: 'front' }, // oben-mitte
-  { top: 0.22, left: 0.94, view: 'left'  }, // oben-rechts
-  { top: 0.68, left: 0.90, view: 'left'  }, // unten-rechts
+  { top: 0.76, left: 0.50, view: 'back'  }, // unten-mitte  (Host)
+  { top: 0.63, left: 0.21, view: 'right' }, // unten-links
+  { top: 0.38, left: 0.24, view: 'right' }, // oben-links
+  { top: 0.24, left: 0.50, view: 'front' }, // oben-mitte
+  { top: 0.38, left: 0.76, view: 'left'  }, // oben-rechts
+  { top: 0.63, left: 0.78, view: 'left'  }, // unten-rechts
 ];
 
 function getTableLevel(level: number): keyof typeof IMG.tables {
@@ -1103,16 +1104,14 @@ function LobbyScreen({ players, setPlayers, onStartGame, onShop }: {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ alignItems: 'center', paddingBottom: 40 }}
-        showsVerticalScrollIndicator={false}>
-
-        {/* ── TISCH ── */}
-        <View style={{ width: tableSize, height: tableH, marginVertical: 12 }}>
+      {/* ── TISCH — flex center ── */}
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ width: tableSize, height: tableH }}>
           <Image source={IMG.tables[tableLevel]}
             style={{ width: '100%', height: '100%', position: 'absolute' }}
             resizeMode="contain" />
 
-          {/* Spiele auf dem Tisch — leicht gedreht als ob sie liegen */}
+          {/* Spiele auf der Tischfläche — leicht rotiert */}
           {GAMES.map((game, gi) => {
             const rotations = [-8, 5, -4, 7];
             const rot = rotations[gi];
@@ -1123,7 +1122,7 @@ function LobbyScreen({ players, setPlayers, onStartGame, onShop }: {
                 left: game.tablePos.left * tableSize - 30,
                 alignItems: 'center',
               }}>
-                <View style={[s.gameOnTable, game.locked && { opacity: 0.55 },
+                <View style={[s.gameOnTable, game.locked && { opacity: 0.6 },
                   { transform: [{ rotate: `${rot}deg` }] }]}>
                   <Image source={IMG.games[game.id as keyof typeof IMG.games]}
                     style={{ width: 44, height: 44 }} resizeMode="contain" />
@@ -1140,54 +1139,51 @@ function LobbyScreen({ players, setPlayers, onStartGame, onShop }: {
             );
           })}
 
-          {/* Spieler an Sitzen */}
+          {/* Spieler an Sitzen — transparent über die Stühle im Bild */}
           {SEATS.map((pos, i) => {
             const player = players[i];
+            const hitW = 52, hitH = 60;
             return (
               <TouchableOpacity
                 key={i}
                 onPress={() => {
-                  if (!player) {
-                    setQuickNameFor(i);
-                  } else if (player.customized) {
-                    setSeatInfoFor(i);
-                  }
+                  if (!player) setQuickNameFor(i);
+                  else if (player.customized) setSeatInfoFor(i);
                 }}
                 style={{
                   position: 'absolute',
-                  top: pos.top * tableH - 38,
-                  left: pos.left * tableSize - 28,
-                  alignItems: 'center', zIndex: 10,
+                  top:  pos.top  * tableH  - hitH / 2,
+                  left: pos.left * tableSize - hitW / 2,
+                  width: hitW, height: hitH,
+                  alignItems: 'center', justifyContent: 'center',
+                  zIndex: 10,
                 }}
               >
-                {player?.customized ? (
-                  <SeatCharacter player={player} view={pos.view} />
-                ) : (
-                  <View style={s.seatEmpty}>
-                    <Text style={s.seatPlus}>+</Text>
-                  </View>
-                )}
+                {player?.customized
+                  ? <SeatCharacter player={player} view={pos.view} />
+                  : null /* chairs in image already show + */
+                }
               </TouchableOpacity>
             );
           })}
         </View>
+      </View>
 
-        {/* ── BOTTOM NAV ── */}
-        <View style={s.bottomNav}>
-          <TouchableOpacity onPress={() => setGuestModal(true)} style={s.navBtn}>
-            <Text style={s.navIcon}>🎫</Text>
-            <Text style={s.navLabel}>GAST</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={onShop} style={s.navBtn}>
-            <Image source={IMG.alchemist} style={s.alchemistIcon} resizeMode="contain" />
-            <Text style={s.navLabel}>SHOP</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => mainPlayer?.customized && setProfileModal(true)} style={s.navBtn}>
-            <Text style={s.navIcon}>👤</Text>
-            <Text style={s.navLabel}>PROFIL</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+      {/* ── BOTTOM NAV — fest am unteren Rand ── */}
+      <View style={s.bottomNav}>
+        <TouchableOpacity onPress={() => setGuestModal(true)} style={s.navBtn}>
+          <Text style={s.navIcon}>🎫</Text>
+          <Text style={s.navLabel}>GAST</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onShop} style={s.navBtn}>
+          <Image source={IMG.alchemist} style={s.alchemistIcon} resizeMode="contain" />
+          <Text style={s.navLabel}>SHOP</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => mainPlayer?.customized && setProfileModal(true)} style={s.navBtn}>
+          <Text style={s.navIcon}>👤</Text>
+          <Text style={s.navLabel}>PROFIL</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* ══ MITSPIELER HINZUFÜGEN ══ */}
       <QuickNameModal
@@ -1470,7 +1466,10 @@ const s = StyleSheet.create({
     letterSpacing: 3, marginBottom: 10,
   },
   bottomNav: {
-    flexDirection: 'row', gap: 14, marginTop: 8, paddingHorizontal: 20, width: '100%',
+    flexDirection: 'row', gap: 14,
+    paddingHorizontal: 16, paddingTop: 10, paddingBottom: 28,
+    width: '100%',
+    borderTopWidth: 1, borderTopColor: 'rgba(201,168,76,0.1)',
   },
   navBtn: {
     flex: 1, alignItems: 'center', gap: 4, padding: 12,
