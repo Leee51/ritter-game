@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Modal,
   TextInput, ScrollView, Animated, Dimensions,
@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 // ═══════════════════════════════════════════════════
 // BILDER
@@ -57,8 +57,36 @@ const IMG = {
 };
 
 // ═══════════════════════════════════════════════════
-// SPIELE – Positionen auf dem Tisch (relativ)
+// TYPEN & KONSTANTEN
 // ═══════════════════════════════════════════════════
+export type HairColor = 'blonde' | 'brown' | 'black' | 'red' | 'white' | 'blue';
+export type BeardStyle = 'none' | 'short' | 'long' | 'viking';
+
+export const HAIR_COLORS: { id: HairColor; label: string; hex: string }[] = [
+  { id: 'blonde', label: 'Blond',    hex: '#E8C84A' },
+  { id: 'brown',  label: 'Braun',    hex: '#7B3F00' },
+  { id: 'black',  label: 'Schwarz',  hex: '#2A2A2A' },
+  { id: 'red',    label: 'Rot',      hex: '#C0392B' },
+  { id: 'white',  label: 'Weiß',     hex: '#D8D8D8' },
+  { id: 'blue',   label: 'Blau',     hex: '#2471A3' },
+];
+
+export const BEARDS: { id: BeardStyle; label: string; icon: string }[] = [
+  { id: 'none',   label: 'Kein Bart',  icon: '🧑' },
+  { id: 'short',  label: 'Kurz',       icon: '🧔' },
+  { id: 'long',   label: 'Lang',       icon: '🧔‍♂️' },
+  { id: 'viking', label: 'Wikinger',   icon: '⚔️' },
+];
+
+export type Player = {
+  name: string;
+  path: 'light' | 'shadow';
+  level: number;
+  hair: HairColor;
+  beard: BeardStyle;
+  customized: boolean;
+} | null;
+
 const GAMES = [
   { id: 'heisse_fackel', name: 'Heiße Fackel', locked: false, tablePos: { top: 0.38, left: 0.20 } },
   { id: 'werwolf',       name: 'Werwolf',       locked: true,  tablePos: { top: 0.28, left: 0.55 } },
@@ -66,7 +94,6 @@ const GAMES = [
   { id: 'kutschen',      name: 'Kutschen Fahrt', locked: true,  tablePos: { top: 0.52, left: 0.35 } },
 ];
 
-// Sitz-Positionen (oktagonal)
 const SEATS = [
   { top: 0.74, left: 0.50 },
   { top: 0.57, left: 0.12 },
@@ -81,24 +108,297 @@ function getTableLevel(level: number): keyof typeof IMG.tables {
   if (level >= 20) return 20;
   if (level >= 15) return 15;
   if (level >= 10) return 10;
-  if (level >= 5) return 5;
+  if (level >= 5)  return 5;
   return 1;
 }
 
-type Player = { name: string; path: 'light' | 'shadow'; level: number } | null;
+// ═══════════════════════════════════════════════════
+// CHARAKTER-VORSCHAU (klein, mit Haar & Bart)
+// ═══════════════════════════════════════════════════
+function CharPreview({
+  path, hair, beard, size = 70,
+}: {
+  path: 'light' | 'shadow'; hair: HairColor; beard: BeardStyle; size?: number;
+}) {
+  const hairHex = HAIR_COLORS.find(h => h.id === hair)?.hex ?? '#E8C84A';
+  const beardIcon = BEARDS.find(b => b.id === beard)?.icon ?? '🧑';
+  const charImg = path === 'light' ? IMG.chars.light[0] : IMG.chars.shadow[0];
+
+  return (
+    <View style={{ width: size, height: size * 1.3, alignItems: 'center' }}>
+      {/* Haar-Streifen oben */}
+      <View style={{
+        position: 'absolute', top: 0, left: 4, right: 4, height: 6,
+        borderRadius: 3, backgroundColor: hairHex, zIndex: 2,
+      }} />
+      {/* Charakter */}
+      <Image source={charImg} style={{ width: size, height: size * 1.2 }} resizeMode="contain" />
+      {/* Bart unten */}
+      {beard !== 'none' && (
+        <Text style={{
+          position: 'absolute', bottom: 0, fontSize: size * 0.22,
+          textAlign: 'center', zIndex: 2,
+        }}>{beardIcon}</Text>
+      )}
+    </View>
+  );
+}
+
+// ═══════════════════════════════════════════════════
+// CHARAKTER AM TISCH (mit Haar-Border & Bart)
+// ═══════════════════════════════════════════════════
+function SeatCharacter({ player }: { player: NonNullable<Player> }) {
+  const hairHex = HAIR_COLORS.find(h => h.id === player.hair)?.hex ?? '#E8C84A';
+  const beardIcon = BEARDS.find(b => b.id === player.beard)?.icon;
+  const charImg = player.path === 'light'
+    ? IMG.chars.light[Math.min(player.level - 1, 8)]
+    : IMG.chars.shadow[Math.min(player.level - 1, 8)];
+
+  return (
+    <View style={{ alignItems: 'center' }}>
+      <View style={{
+        borderWidth: 2, borderColor: hairHex, borderRadius: 6,
+        backgroundColor: 'transparent', padding: 1,
+      }}>
+        <Image source={charImg} style={s.seatChar} resizeMode="contain" />
+        {player.beard !== 'none' && (
+          <Text style={{ position: 'absolute', bottom: -4, alignSelf: 'center', fontSize: 10 }}>
+            {beardIcon}
+          </Text>
+        )}
+      </View>
+      <Text style={s.seatName}>{player.name}</Text>
+      <Text style={s.seatLvl}>Lvl {player.level}</Text>
+    </View>
+  );
+}
+
+// ═══════════════════════════════════════════════════
+// CHARAKTER-ERSTELLUNGS MODAL
+// ═══════════════════════════════════════════════════
+function CharacterCreationModal({
+  visible,
+  isMainPlayer,
+  onConfirm,
+  onCancel,
+}: {
+  visible: boolean;
+  isMainPlayer: boolean;
+  onConfirm: (data: { name: string; path: 'light' | 'shadow'; hair: HairColor; beard: BeardStyle }) => void;
+  onCancel?: () => void;
+}) {
+  const [step, setStep]     = useState<'name' | 'path' | 'hair' | 'beard'>('name');
+  const [name, setName]     = useState('');
+  const [path, setPath]     = useState<'light' | 'shadow'>('light');
+  const [hair, setHair]     = useState<HairColor>('blonde');
+  const [beard, setBeard]   = useState<BeardStyle>('none');
+
+  // Animation: Seite wechseln
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const goToStep = (next: typeof step) => {
+    Animated.sequence([
+      Animated.timing(slideAnim, { toValue: -30, duration: 120, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
+    ]).start();
+    setStep(next);
+  };
+
+  const steps = ['name', 'path', 'hair', 'beard'];
+  const stepIdx = steps.indexOf(step);
+  const hairHex = HAIR_COLORS.find(h => h.id === hair)?.hex ?? '#E8C84A';
+
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <View style={s.overlay}>
+        <View style={[s.modalBox, { maxHeight: '92%' }]}>
+
+          {/* Fortschritts-Punkte */}
+          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 20 }}>
+            {steps.map((_, i) => (
+              <View key={i} style={{
+                width: i === stepIdx ? 20 : 8, height: 8, borderRadius: 4,
+                backgroundColor: i <= stepIdx ? '#C9A84C' : 'rgba(201,168,76,0.2)',
+              }} />
+            ))}
+          </View>
+
+          <Animated.View style={{ transform: [{ translateX: slideAnim }] }}>
+
+            {/* ── SCHRITT 1: Name ── */}
+            {step === 'name' && (
+              <View>
+                <Text style={s.modalTitle}>⚔ DEIN NAME</Text>
+                <Text style={s.modalSub}>Wie soll dein Recke heißen?</Text>
+                <TextInput
+                  style={[s.input, { marginTop: 16 }]}
+                  placeholder="Name eingeben..."
+                  placeholderTextColor="rgba(255,255,255,0.25)"
+                  value={name}
+                  onChangeText={setName}
+                  autoFocus
+                  maxLength={16}
+                  onSubmitEditing={() => name.trim() && goToStep('path')}
+                />
+                <TouchableOpacity
+                  style={[s.scrollStartBtn, { opacity: name.trim() ? 1 : 0.4 }]}
+                  onPress={() => name.trim() && goToStep('path')}
+                  disabled={!name.trim()}
+                >
+                  <Text style={s.scrollStartText}>WEITER →</Text>
+                </TouchableOpacity>
+                {!isMainPlayer && onCancel && (
+                  <TouchableOpacity onPress={onCancel} style={{ marginTop: 12, alignItems: 'center' }}>
+                    <Text style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11 }}>Abbrechen</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            {/* ── SCHRITT 2: Pfad (Licht / Schatten) ── */}
+            {step === 'path' && (
+              <View>
+                <Text style={s.modalTitle}>☀️ DEIN PFAD 🌑</Text>
+                <Text style={s.modalSub}>Diese Wahl ist für immer.</Text>
+
+                <View style={{ flexDirection: 'row', gap: 12, marginTop: 20, marginBottom: 24 }}>
+                  {/* LICHT */}
+                  <TouchableOpacity
+                    style={[s.pathCardBig, path === 'light' && s.pathCardBigActive,
+                      path === 'light' && { borderColor: '#F0C040' }]}
+                    onPress={() => setPath('light')}
+                  >
+                    <Image source={IMG.chars.light[0]}
+                      style={{ width: 70, height: 90 }} resizeMode="contain" />
+                    <Text style={[s.pathCardTitle, { color: '#F0C040' }]}>LICHT</Text>
+                    <Text style={s.pathCardDesc}>Ehre · Mut · Schutz</Text>
+                  </TouchableOpacity>
+
+                  {/* SCHATTEN */}
+                  <TouchableOpacity
+                    style={[s.pathCardBig, path === 'shadow' && s.pathCardBigActive,
+                      path === 'shadow' && { borderColor: '#8B5CF6' }]}
+                    onPress={() => setPath('shadow')}
+                  >
+                    <Image source={IMG.chars.shadow[0]}
+                      style={{ width: 70, height: 90 }} resizeMode="contain" />
+                    <Text style={[s.pathCardTitle, { color: '#8B5CF6' }]}>SCHATTEN</Text>
+                    <Text style={s.pathCardDesc}>List · Macht · Dunkel</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity style={s.scrollStartBtn} onPress={() => goToStep('hair')}>
+                  <Text style={s.scrollStartText}>WEITER →</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* ── SCHRITT 3: Haarfarbe ── */}
+            {step === 'hair' && (
+              <View>
+                <Text style={s.modalTitle}>💇 HAARFARBE</Text>
+                <Text style={s.modalSub}>Wähle deine Farbe — ein für alle Mal.</Text>
+
+                {/* Vorschau */}
+                <View style={{ alignItems: 'center', marginVertical: 16 }}>
+                  <CharPreview path={path} hair={hair} beard={beard} size={80} />
+                  <View style={{
+                    marginTop: 8, paddingHorizontal: 14, paddingVertical: 4,
+                    borderRadius: 20, backgroundColor: hairHex + '33',
+                    borderWidth: 1, borderColor: hairHex,
+                  }}>
+                    <Text style={{ color: hairHex, fontSize: 11, fontWeight: '700' }}>
+                      {HAIR_COLORS.find(h => h.id === hair)?.label}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Farbauswahl */}
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12,
+                  justifyContent: 'center', marginBottom: 24 }}>
+                  {HAIR_COLORS.map(hc => (
+                    <TouchableOpacity key={hc.id} onPress={() => setHair(hc.id)}>
+                      <View style={[s.colorSwatch, { backgroundColor: hc.hex },
+                        hair === hc.id && s.colorSwatchSelected,
+                        hc.id === 'white' && { borderColor: '#888' },
+                      ]}>
+                        {hair === hc.id && (
+                          <Text style={{ fontSize: 14, color: hc.id === 'white' ? '#333' : '#fff' }}>✓</Text>
+                        )}
+                      </View>
+                      <Text style={[s.colorLabel, { color: hair === hc.id ? hc.hex : 'rgba(255,255,255,0.35)' }]}>
+                        {hc.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <TouchableOpacity style={s.scrollStartBtn} onPress={() => goToStep('beard')}>
+                  <Text style={s.scrollStartText}>WEITER →</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* ── SCHRITT 4: Bart ── */}
+            {step === 'beard' && (
+              <View>
+                <Text style={s.modalTitle}>🧔 BART</Text>
+                <Text style={s.modalSub}>Dein letzter Schritt, Recke.</Text>
+
+                {/* Vorschau */}
+                <View style={{ alignItems: 'center', marginVertical: 16 }}>
+                  <CharPreview path={path} hair={hair} beard={beard} size={80} />
+                  <Text style={{ color: 'rgba(201,168,76,0.6)', marginTop: 8, fontSize: 11 }}>
+                    {name} · {path === 'light' ? '☀️ Licht' : '🌑 Schatten'}
+                  </Text>
+                </View>
+
+                {/* Bart-Auswahl */}
+                <View style={{ gap: 8, marginBottom: 20 }}>
+                  {BEARDS.map(b => (
+                    <TouchableOpacity
+                      key={b.id}
+                      style={[s.beardOption, beard === b.id && s.beardOptionActive]}
+                      onPress={() => setBeard(b.id)}
+                    >
+                      <Text style={{ fontSize: 22 }}>{b.icon}</Text>
+                      <Text style={[s.beardLabel, beard === b.id && { color: '#C9A84C' }]}>
+                        {b.label}
+                      </Text>
+                      {beard === b.id && <Text style={{ color: '#C9A84C', marginLeft: 'auto' }}>✓</Text>}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* FERTIG */}
+                <TouchableOpacity
+                  style={[s.scrollStartBtn, { backgroundColor: '#C9A84C' }]}
+                  onPress={() => onConfirm({ name: name.trim(), path, hair, beard })}
+                >
+                  <Text style={[s.scrollStartText, { color: '#0A0704' }]}>
+                    ⚔ RECKE ERSCHAFFEN
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+          </Animated.View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 // ═══════════════════════════════════════════════════
 // HAUPT APP
 // ═══════════════════════════════════════════════════
 export default function App() {
-  const [screen, setScreen] = useState<'lobby' | 'game' | 'shop'>('lobby');
+  const [screen, setScreen]         = useState<'lobby' | 'game' | 'shop'>('lobby');
   const [activeGame, setActiveGame] = useState<string | null>(null);
 
   if (screen === 'shop') return <ShopScreen onBack={() => setScreen('lobby')} />;
   if (screen === 'game' && activeGame === 'heisse_fackel') {
     return <HeisseFackelScreen onBack={() => { setScreen('lobby'); setActiveGame(null); }} />;
   }
-
   return (
     <LobbyScreen
       onStartGame={(id) => { setActiveGame(id); setScreen('game'); }}
@@ -115,21 +415,46 @@ function LobbyScreen({ onStartGame, onShop }: {
   onShop: () => void;
 }) {
   const [players, setPlayers] = useState<Player[]>([
-    { name: 'Leon', path: 'light', level: 3 },
+    // Hauptspieler: noch nicht konfiguriert → zeigt sofort den Creator
+    { name: '', path: 'light', level: 3, hair: 'blonde', beard: 'none', customized: false },
     null, null, null, null, null,
   ]);
 
-  // Modals
-  const [seatModal, setSeatModal]   = useState<number | null>(null);
-  const [newName, setNewName]       = useState('');
-  const [newPath, setNewPath]       = useState<'light' | 'shadow'>('light');
-  const [guestModal, setGuestModal] = useState(false);
-  const [scrollModal, setScrollModal] = useState<typeof GAMES[0] | null>(null);
-  const [unlockModal, setUnlockModal] = useState(false);
-  const [difficulty, setDifficulty] = useState<1|2|3>(1);
+  const [creationFor, setCreationFor]   = useState<number | null>(null);
+  const [seatInfoFor, setSeatInfoFor]   = useState<number | null>(null);
+  const [guestModal, setGuestModal]     = useState(false);
+  const [scrollModal, setScrollModal]   = useState<typeof GAMES[0] | null>(null);
+  const [unlockModal, setUnlockModal]   = useState(false);
+  const [difficulty, setDifficulty]     = useState<1|2|3>(1);
+  const scrollAnim                      = useRef(new Animated.Value(0)).current;
 
-  // Schriftrolle Animation
-  const scrollAnim = useRef(new Animated.Value(0)).current;
+  // Hauptspieler-Creator beim ersten Start
+  useEffect(() => {
+    if (players[0] && !players[0].customized) {
+      setCreationFor(0);
+    }
+  }, []);
+
+  const handleCreationConfirm = (idx: number, data: {
+    name: string; path: 'light' | 'shadow'; hair: HairColor; beard: BeardStyle;
+  }) => {
+    const updated = [...players];
+    updated[idx] = {
+      name: data.name, path: data.path,
+      level: idx === 0 ? 3 : 1,
+      hair: data.hair, beard: data.beard,
+      customized: true,
+    };
+    setPlayers(updated);
+    setCreationFor(null);
+  };
+
+  const removePlayer = (i: number) => {
+    const updated = [...players];
+    updated[i] = null;
+    setPlayers(updated);
+    setSeatInfoFor(null);
+  };
 
   const openScroll = (game: typeof GAMES[0]) => {
     if (game.locked) { setUnlockModal(true); return; }
@@ -138,53 +463,30 @@ function LobbyScreen({ onStartGame, onShop }: {
     Animated.spring(scrollAnim, { toValue: 1, useNativeDriver: true, tension: 60, friction: 8 }).start();
   };
 
-  const addPlayer = () => {
-    if (!newName.trim() || seatModal === null) return;
-    const updated = [...players];
-    updated[seatModal] = { name: newName.trim(), path: newPath, level: 1 };
-    setPlayers(updated);
-    setSeatModal(null);
-    setNewName('');
-  };
-
-  const removePlayer = (i: number) => {
-    if (i === 0) return; // Hauptspieler nicht entfernen
-    const updated = [...players];
-    updated[i] = null;
-    setPlayers(updated);
-    setSeatModal(null);
-  };
-
-  const mainPlayer = players[0]!;
-  const tableSize  = width * 0.92;
-  const tableH     = tableSize * 0.88;
-  const tableLevel = getTableLevel(mainPlayer.level);
-  const gameCode   = '4F8K2R'; // Placeholder join code
+  const mainPlayer   = players[0];
+  const tableSize    = width * 0.92;
+  const tableH       = tableSize * 0.88;
+  const tableLevel   = getTableLevel(mainPlayer?.level ?? 1);
+  const gameCode     = '4F8K2R';
 
   return (
     <View style={s.container}>
       <StatusBar barStyle="light-content" />
 
-      {/* Hintergrund */}
       <ImageBackground source={IMG.background} style={StyleSheet.absoluteFill} resizeMode="cover">
         <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.52)' }]} />
       </ImageBackground>
 
       {/* ── HEADER ── */}
       <View style={s.header}>
-        {/* Level */}
         <View style={s.levelBadge}>
-          <Text style={s.levelNum}>{mainPlayer.level}</Text>
+          <Text style={s.levelNum}>{mainPlayer?.level ?? 1}</Text>
           <Text style={s.levelLabel}>LVL</Text>
         </View>
-
-        {/* Titel */}
         <View style={{ alignItems: 'center' }}>
           <Text style={s.appTitle}>KNIGHT'S PASS</Text>
           <Text style={s.appSub}>DIE TAVERNE</Text>
         </View>
-
-        {/* Währung */}
         <View style={s.currencyCol}>
           <View style={s.currRow}>
             <Image source={IMG.silver} style={s.coin} />
@@ -197,34 +499,29 @@ function LobbyScreen({ onStartGame, onShop }: {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ alignItems: 'center', paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ alignItems: 'center', paddingBottom: 40 }}
+        showsVerticalScrollIndicator={false}>
 
-        {/* ── TISCH MIT SPIELERN + SPIELEN ── */}
+        {/* ── TISCH ── */}
         <View style={{ width: tableSize, height: tableH, marginVertical: 12 }}>
-          {/* Tisch Bild */}
           <Image source={IMG.tables[tableLevel]}
             style={{ width: '100%', height: '100%', position: 'absolute' }}
             resizeMode="contain" />
 
-          {/* Spiele-Icons AUF dem Tisch */}
+          {/* Spiele auf dem Tisch */}
           {GAMES.map(game => (
-            <TouchableOpacity
-              key={game.id}
-              onPress={() => openScroll(game)}
-              style={{
-                position: 'absolute',
-                top: game.tablePos.top * tableH - 24,
-                left: game.tablePos.left * tableSize - 24,
-                alignItems: 'center',
-              }}
-            >
+            <TouchableOpacity key={game.id} onPress={() => openScroll(game)} style={{
+              position: 'absolute',
+              top: game.tablePos.top * tableH - 28,
+              left: game.tablePos.left * tableSize - 28,
+              alignItems: 'center',
+            }}>
               <View style={[s.gameOnTable, game.locked && { opacity: 0.5 }]}>
                 <Image source={IMG.games[game.id as keyof typeof IMG.games]}
-                  style={{ width: 42, height: 42 }}
-                  resizeMode="contain" />
+                  style={{ width: 42, height: 42 }} resizeMode="contain" />
                 {game.locked && (
                   <View style={s.lockOverlay}>
-                    <Text style={{ fontSize: 12 }}>🔒</Text>
+                    <Text style={{ fontSize: 11 }}>🔒</Text>
                   </View>
                 )}
               </View>
@@ -235,30 +532,25 @@ function LobbyScreen({ onStartGame, onShop }: {
           {/* Spieler an Sitzen */}
           {SEATS.map((pos, i) => {
             const player = players[i];
-            const charImg = player
-              ? (player.path === 'shadow'
-                  ? IMG.chars.shadow[Math.min(player.level - 1, 8)]
-                  : IMG.chars.light[Math.min(player.level - 1, 8)])
-              : null;
-
             return (
               <TouchableOpacity
                 key={i}
-                onPress={() => { setSeatModal(i); setNewName(player?.name ?? ''); setNewPath(player?.path ?? 'light'); }}
+                onPress={() => {
+                  if (!player) {
+                    setCreationFor(i);
+                  } else if (player.customized) {
+                    setSeatInfoFor(i);
+                  }
+                }}
                 style={{
                   position: 'absolute',
-                  top: pos.top * tableH - 34,
-                  left: pos.left * tableSize - 26,
-                  alignItems: 'center',
-                  zIndex: 10,
+                  top: pos.top * tableH - 38,
+                  left: pos.left * tableSize - 28,
+                  alignItems: 'center', zIndex: 10,
                 }}
               >
-                {player && charImg ? (
-                  <View style={s.seatFilled}>
-                    <Image source={charImg} style={s.seatChar} resizeMode="contain" />
-                    <Text style={s.seatName}>{player.name}</Text>
-                    <Text style={s.seatLvl}>Lvl {player.level}</Text>
-                  </View>
+                {player?.customized ? (
+                  <SeatCharacter player={player} />
                 ) : (
                   <View style={s.seatEmpty}>
                     <Text style={s.seatPlus}>+</Text>
@@ -284,108 +576,71 @@ function LobbyScreen({ onStartGame, onShop }: {
             <Text style={s.navLabel}>PROFIL</Text>
           </TouchableOpacity>
         </View>
-
       </ScrollView>
 
-      {/* ══════════════════════════════════════
-          MODAL: Sitz auswählen / Spieler edit
-      ══════════════════════════════════════ */}
-      <Modal visible={seatModal !== null} transparent animationType="fade">
+      {/* ══ CHARAKTER ERSTELLEN ══ */}
+      <CharacterCreationModal
+        visible={creationFor !== null}
+        isMainPlayer={creationFor === 0}
+        onConfirm={(data) => creationFor !== null && handleCreationConfirm(creationFor, data)}
+        onCancel={creationFor !== 0 ? () => setCreationFor(null) : undefined}
+      />
+
+      {/* ══ SITZ INFO (nur anzeigen, nichts änderbar) ══ */}
+      <Modal visible={seatInfoFor !== null} transparent animationType="fade">
         <View style={s.overlay}>
           <View style={s.modalBox}>
-            {seatModal !== null && players[seatModal] ? (
-              // Bestehenden Spieler bearbeiten
-              <>
-                <Text style={s.modalTitle}>⚔ {players[seatModal]!.name}</Text>
-                <Text style={{ color: 'rgba(255,255,255,0.4)', marginBottom: 16, textAlign: 'center', fontSize: 12 }}>
-                  Lvl {players[seatModal]!.level} · {players[seatModal]!.path === 'light' ? '☀️ Licht' : '🌑 Schatten'}
-                </Text>
-                {/* Pfad wechseln */}
-                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-                  <TouchableOpacity
-                    style={[s.pathBtn, players[seatModal]!.path === 'light' && s.pathBtnActive]}
-                    onPress={() => {
-                      const u = [...players];
-                      u[seatModal!] = { ...u[seatModal!]!, path: 'light' };
-                      setPlayers(u); setSeatModal(null);
-                    }}>
-                    <Image source={IMG.chars.light[Math.min(players[seatModal]!.level-1,8)]}
-                      style={{ width: 50, height: 60 }} resizeMode="contain" />
-                    <Text style={s.pathLabel}>☀️ LICHT</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[s.pathBtn, players[seatModal!]!.path === 'shadow' && s.pathBtnActive]}
-                    onPress={() => {
-                      const u = [...players];
-                      u[seatModal!] = { ...u[seatModal!]!, path: 'shadow' };
-                      setPlayers(u); setSeatModal(null);
-                    }}>
-                    <Image source={IMG.chars.shadow[Math.min(players[seatModal]!.level-1,8)]}
-                      style={{ width: 50, height: 60 }} resizeMode="contain" />
-                    <Text style={s.pathLabel}>🌑 SCHATTEN</Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <TouchableOpacity onPress={() => setSeatModal(null)} style={s.cancelBtn}>
-                    <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>SCHLIESSEN</Text>
-                  </TouchableOpacity>
-                  {seatModal !== 0 && (
-                    <TouchableOpacity onPress={() => removePlayer(seatModal!)} style={[s.cancelBtn, { borderColor: '#EF4444' }]}>
-                      <Text style={{ color: '#EF4444', fontSize: 12 }}>ENTFERNEN</Text>
+            {seatInfoFor !== null && players[seatInfoFor] && (() => {
+              const p = players[seatInfoFor]!;
+              const hairHex = HAIR_COLORS.find(h => h.id === p.hair)?.hex ?? '#C9A84C';
+              return (
+                <>
+                  <Text style={s.modalTitle}>{p.name}</Text>
+                  <View style={{ alignItems: 'center', marginBottom: 16 }}>
+                    <CharPreview path={p.path} hair={p.hair} beard={p.beard} size={80} />
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                      <View style={[s.infoBadge, { borderColor: hairHex }]}>
+                        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: hairHex, marginRight: 5 }} />
+                        <Text style={[s.infoBadgeText, { color: hairHex }]}>
+                          {HAIR_COLORS.find(h => h.id === p.hair)?.label}
+                        </Text>
+                      </View>
+                      <View style={s.infoBadge}>
+                        <Text style={s.infoBadgeText}>
+                          {BEARDS.find(b => b.id === p.beard)?.icon} {BEARDS.find(b => b.id === p.beard)?.label}
+                        </Text>
+                      </View>
+                      <View style={[s.infoBadge, { borderColor: p.path === 'light' ? '#F0C040' : '#8B5CF6' }]}>
+                        <Text style={[s.infoBadgeText, { color: p.path === 'light' ? '#F0C040' : '#8B5CF6' }]}>
+                          {p.path === 'light' ? '☀️ Licht' : '🌑 Schatten'}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={{ color: 'rgba(255,255,255,0.25)', fontSize: 10, marginTop: 8 }}>
+                      🔒 Charakter kann nicht mehr geändert werden
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TouchableOpacity onPress={() => setSeatInfoFor(null)} style={s.cancelBtn}>
+                      <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>SCHLIESSEN</Text>
                     </TouchableOpacity>
-                  )}
-                </View>
-              </>
-            ) : (
-              // Neuen Spieler hinzufügen
-              <>
-                <Text style={s.modalTitle}>RECKE HINZUFÜGEN</Text>
-                <TextInput
-                  style={s.input}
-                  placeholder="Name..."
-                  placeholderTextColor="rgba(255,255,255,0.3)"
-                  value={newName}
-                  onChangeText={setNewName}
-                  autoFocus
-                  onSubmitEditing={addPlayer}
-                />
-                {/* Charakter-Pfad wählen */}
-                <Text style={{ color: 'rgba(201,168,76,0.5)', fontSize: 10, letterSpacing: 2, marginBottom: 10 }}>CHARAKTER WÄHLEN</Text>
-                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-                  <TouchableOpacity
-                    style={[s.pathBtn, newPath === 'light' && s.pathBtnActive]}
-                    onPress={() => setNewPath('light')}>
-                    <Image source={IMG.chars.light[0]} style={{ width: 50, height: 60 }} resizeMode="contain" />
-                    <Text style={s.pathLabel}>☀️ LICHT</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[s.pathBtn, newPath === 'shadow' && s.pathBtnActive]}
-                    onPress={() => setNewPath('shadow')}>
-                    <Image source={IMG.chars.shadow[0]} style={{ width: 50, height: 60 }} resizeMode="contain" />
-                    <Text style={s.pathLabel}>🌑 SCHATTEN</Text>
-                  </TouchableOpacity>
-                </View>
-                {/* Gast-Option */}
-                <TouchableOpacity onPress={() => { setSeatModal(null); setGuestModal(true); }} style={s.guestInlineBtn}>
-                  <Text style={{ color: '#C9A84C', fontSize: 11, fontWeight: '700' }}>🎫 ALS GAST MITSPIELEN</Text>
-                </TouchableOpacity>
-                <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
-                  <TouchableOpacity onPress={() => setSeatModal(null)} style={s.cancelBtn}>
-                    <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>ABBRUCH</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={addPlayer} style={s.confirmBtn}>
-                    <Text style={{ color: '#0A0704', fontSize: 12, fontWeight: '800' }}>⚔ BEITRETEN</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
+                    {seatInfoFor !== 0 && (
+                      <TouchableOpacity
+                        onPress={() => removePlayer(seatInfoFor!)}
+                        style={[s.cancelBtn, { borderColor: '#EF4444' }]}
+                      >
+                        <Text style={{ color: '#EF4444', fontSize: 12 }}>ENTFERNEN</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </>
+              );
+            })()}
           </View>
         </View>
       </Modal>
 
-      {/* ══════════════════════════════════════
-          MODAL: Gast / QR Code
-      ══════════════════════════════════════ */}
+      {/* ══ GAST / QR ══ */}
       <Modal visible={guestModal} transparent animationType="slide">
         <View style={s.overlay}>
           <View style={s.modalBox}>
@@ -393,24 +648,14 @@ function LobbyScreen({ onStartGame, onShop }: {
             <Text style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center', marginBottom: 20, fontSize: 12 }}>
               Gast scannt den QR-Code — sein Fortschritt{'\n'}wird automatisch geladen.
             </Text>
-
-            {/* QR Code */}
             <View style={{ alignItems: 'center', marginBottom: 20, padding: 16,
               backgroundColor: 'white', borderRadius: 12 }}>
-              <QRCode
-                value={`knightspass://join/${gameCode}`}
-                size={180}
-                color="#0A0704"
-                backgroundColor="white"
-              />
+              <QRCode value={`knightspass://join/${gameCode}`} size={170} color="#0A0704" backgroundColor="white" />
             </View>
-
-            {/* Code Text */}
             <View style={s.codeBox}>
               <Text style={s.codeLabel}>ODER CODE EINGEBEN</Text>
               <Text style={s.codeText}>{gameCode}</Text>
             </View>
-
             <TouchableOpacity onPress={() => setGuestModal(false)} style={[s.confirmBtn, { marginTop: 16 }]}>
               <Text style={{ color: '#0A0704', fontWeight: '800' }}>SCHLIESSEN</Text>
             </TouchableOpacity>
@@ -418,39 +663,27 @@ function LobbyScreen({ onStartGame, onShop }: {
         </View>
       </Modal>
 
-      {/* ══════════════════════════════════════
-          MODAL: Schriftrolle (Spiel starten)
-      ══════════════════════════════════════ */}
+      {/* ══ SCHRIFTROLLE ══ */}
       <Modal visible={scrollModal !== null} transparent animationType="fade">
         <View style={s.overlay}>
-          <Animated.View style={[
-            s.scrollContainer,
-            {
-              transform: [
-                { scaleY: scrollAnim },
-                { scaleX: scrollAnim.interpolate({ inputRange: [0,1], outputRange: [0.8, 1] }) },
-              ],
-              opacity: scrollAnim,
-            }
-          ]}>
-            {/* Schriftrolle Dekoration oben */}
+          <Animated.View style={[s.scrollContainer, {
+            transform: [
+              { scaleY: scrollAnim },
+              { scaleX: scrollAnim.interpolate({ inputRange: [0,1], outputRange: [0.85,1] }) },
+            ],
+            opacity: scrollAnim,
+          }]}>
             <View style={s.scrollEnd} />
-
             <View style={s.scrollBody}>
               <Text style={s.scrollTitle}>📜 {scrollModal?.name?.toUpperCase()}</Text>
               <Text style={s.scrollSubtitle}>HÄRTEGRAD WÄHLEN</Text>
-
-              {/* Schwierigkeits-Stufen */}
               {([
-                { val: 1, label: 'LEICHT', desc: 'Harmlose Aufgaben & Fragen', icon: '🌿' },
-                { val: 2, label: 'MITTEL', desc: 'Mutige Wahrheiten & Pflichten', icon: '🔥' },
-                { val: 3, label: 'BRUTAL', desc: 'Nichts ist heilig — auf eigene Gefahr', icon: '💀' },
-              ] as const).map(d => (
-                <TouchableOpacity
-                  key={d.val}
-                  onPress={() => setDifficulty(d.val)}
-                  style={[s.diffBtn, difficulty === d.val && s.diffBtnActive]}
-                >
+                { val: 1 as const, label: 'LEICHT',  desc: 'Harmlose Aufgaben & Fragen',             icon: '🌿' },
+                { val: 2 as const, label: 'MITTEL',  desc: 'Mutige Wahrheiten & Pflichten',          icon: '🔥' },
+                { val: 3 as const, label: 'BRUTAL',  desc: 'Nichts ist heilig — auf eigene Gefahr',  icon: '💀' },
+              ]).map(d => (
+                <TouchableOpacity key={d.val} onPress={() => setDifficulty(d.val)}
+                  style={[s.diffBtn, difficulty === d.val && s.diffBtnActive]}>
                   <Text style={{ fontSize: 20 }}>{d.icon}</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={[s.diffLabel, difficulty === d.val && { color: '#C9A84C' }]}>{d.label}</Text>
@@ -459,30 +692,20 @@ function LobbyScreen({ onStartGame, onShop }: {
                   {difficulty === d.val && <Text style={{ color: '#C9A84C' }}>✓</Text>}
                 </TouchableOpacity>
               ))}
-
-              {/* Starten */}
-              <TouchableOpacity
-                style={s.scrollStartBtn}
-                onPress={() => {
-                  setScrollModal(null);
-                  if (scrollModal) onStartGame(scrollModal.id);
-                }}
-              >
+              <TouchableOpacity style={s.scrollStartBtn}
+                onPress={() => { setScrollModal(null); if (scrollModal) onStartGame(scrollModal.id); }}>
                 <Text style={s.scrollStartText}>⚔ SPIEL STARTEN</Text>
               </TouchableOpacity>
-
               <TouchableOpacity onPress={() => setScrollModal(null)} style={{ marginTop: 12, alignItems: 'center' }}>
                 <Text style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11 }}>Abbrechen</Text>
               </TouchableOpacity>
             </View>
-
-            {/* Schriftrolle Dekoration unten */}
             <View style={s.scrollEnd} />
           </Animated.View>
         </View>
       </Modal>
 
-      {/* Freischalten Modal */}
+      {/* ══ FREISCHALTEN ══ */}
       <Modal visible={unlockModal} transparent animationType="slide">
         <View style={s.overlay}>
           <View style={s.modalBox}>
@@ -504,7 +727,7 @@ function LobbyScreen({ onStartGame, onShop }: {
 }
 
 // ═══════════════════════════════════════════════════
-// HEISZE FACKEL SCREEN (Wrapper)
+// HEISZE FACKEL WRAPPER
 // ═══════════════════════════════════════════════════
 function HeisseFackelScreen({ onBack }: { onBack: () => void }) {
   return (
@@ -514,8 +737,7 @@ function HeisseFackelScreen({ onBack }: { onBack: () => void }) {
       </ImageBackground>
       <Image source={IMG.games.heisse_fackel} style={{ width: 120, height: 120, marginBottom: 20 }} resizeMode="contain" />
       <Text style={[s.appTitle, { marginBottom: 8 }]}>HEISZE FACKEL</Text>
-      <Text style={{ color: 'rgba(255,255,255,0.4)', marginBottom: 40 }}>Lädt...</Text>
-      <TouchableOpacity onPress={onBack} style={s.confirmBtn}>
+      <TouchableOpacity onPress={onBack} style={[s.confirmBtn, { flex: 0, paddingHorizontal: 32 }]}>
         <Text style={{ color: '#0A0704', fontWeight: '800' }}>← ZURÜCK</Text>
       </TouchableOpacity>
     </View>
@@ -538,19 +760,18 @@ const SHOP_IMAGES: Record<string, any> = {
   'holzziege.png':      require('../assets/images/shop item/holzziege.png'),
   'doppelmaske.png':    require('../assets/images/shop item/doppelmaske.png'),
 };
-
 const SHOP_ITEMS = [
-  { id: 'holzschild',  name: 'Holzschild',    desc: '1 Schluck sparen',       price: 50,  file: 'holzschild.png' },
-  { id: 'stahlschild', name: 'Stahlschild',   desc: '2 Schlucke sparen',      price: 150, file: 'Stahlschild.png' },
-  { id: 'titanschild', name: 'Titanschild',   desc: 'Komplett immun',         price: 400, file: 'Titaniumschild.png' },
-  { id: 'goldschild',  name: 'Goldschild',    desc: 'Schlucke ½ für 1 Runde', price: 200, file: 'goldschild.png' },
-  { id: 'xptrank',     name: 'XP Trank',      desc: '+50% XP für 1 Abend',   price: 100, file: 'xp trank.png' },
-  { id: 'xp2trank',    name: 'Doppel XP',     desc: '2× XP für 3 Runden',    price: 250, file: 'xp 2x trank.png' },
-  { id: 'sanduhr',     name: 'Zeitglas',      desc: 'Timer pausieren',        price: 100, file: 'goldsanduhr.png' },
-  { id: 'kerze',       name: 'Fluch',         desc: 'Jemand trinkt doppelt',  price: 180, file: 'lila kerze.png' },
-  { id: 'schriftrolle',name: 'Kgl. Erlass',   desc: 'Aufgabe ablehnen',       price: 300, file: 'schriftrolle.png' },
-  { id: 'ziege',       name: 'Sündenbock',    desc: 'Aufgabe weitergeben',    price: 250, file: 'holzziege.png' },
-  { id: 'maske',       name: 'Doppelgänger',  desc: 'Aufgabe teilen',         price: 150, file: 'doppelmaske.png' },
+  { id: 'holzschild',   name: 'Holzschild',   desc: '1 Schluck sparen',       price: 50,  file: 'holzschild.png' },
+  { id: 'stahlschild',  name: 'Stahlschild',  desc: '2 Schlucke sparen',      price: 150, file: 'Stahlschild.png' },
+  { id: 'titanschild',  name: 'Titanschild',  desc: 'Komplett immun',         price: 400, file: 'Titaniumschild.png' },
+  { id: 'goldschild',   name: 'Goldschild',   desc: 'Schlucke ½ für 1 Runde', price: 200, file: 'goldschild.png' },
+  { id: 'xptrank',      name: 'XP Trank',     desc: '+50% XP für 1 Abend',   price: 100, file: 'xp trank.png' },
+  { id: 'xp2trank',     name: 'Doppel XP',    desc: '2× XP für 3 Runden',    price: 250, file: 'xp 2x trank.png' },
+  { id: 'sanduhr',      name: 'Zeitglas',     desc: 'Timer pausieren',        price: 100, file: 'goldsanduhr.png' },
+  { id: 'kerze',        name: 'Fluch',        desc: 'Jemand trinkt doppelt',  price: 180, file: 'lila kerze.png' },
+  { id: 'schriftrolle', name: 'Kgl. Erlass',  desc: 'Aufgabe ablehnen',       price: 300, file: 'schriftrolle.png' },
+  { id: 'ziege',        name: 'Sündenbock',   desc: 'Aufgabe weitergeben',    price: 250, file: 'holzziege.png' },
+  { id: 'maske',        name: 'Doppelgänger', desc: 'Aufgabe teilen',         price: 150, file: 'doppelmaske.png' },
 ];
 
 function ShopScreen({ onBack }: { onBack: () => void }) {
@@ -560,27 +781,19 @@ function ShopScreen({ onBack }: { onBack: () => void }) {
       <ImageBackground source={IMG.background} style={StyleSheet.absoluteFill} resizeMode="cover">
         <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.75)' }]} />
       </ImageBackground>
-
       <View style={s.header}>
         <TouchableOpacity onPress={onBack}>
           <Text style={{ color: 'rgba(201,168,76,0.6)', fontSize: 11, letterSpacing: 1 }}>← TAVERNE</Text>
         </TouchableOpacity>
         <View style={{ alignItems: 'center' }}>
-          <Image source={IMG.alchemist} style={{ width: 48, height: 48 }} resizeMode="contain" />
+          <Image source={IMG.alchemist} style={{ width: 46, height: 46 }} resizeMode="contain" />
           <Text style={[s.appTitle, { fontSize: 13 }]}>ALCHEMIST</Text>
         </View>
         <View style={s.currencyCol}>
-          <View style={s.currRow}>
-            <Image source={IMG.silver} style={s.coin} />
-            <Text style={s.currText}>8 450</Text>
-          </View>
-          <View style={s.currRow}>
-            <Image source={IMG.gold} style={s.coin} />
-            <Text style={[s.currText, { color: '#FFD700' }]}>230</Text>
-          </View>
+          <View style={s.currRow}><Image source={IMG.silver} style={s.coin} /><Text style={s.currText}>8 450</Text></View>
+          <View style={s.currRow}><Image source={IMG.gold} style={s.coin} /><Text style={[s.currText,{color:'#FFD700'}]}>230</Text></View>
         </View>
       </View>
-
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
         <Text style={s.sectionTitle}>🛡️ ITEMS & SCHILDE</Text>
         <View style={s.shopGrid}>
@@ -593,9 +806,7 @@ function ShopScreen({ onBack }: { onBack: () => void }) {
                 <Image source={IMG.silver} style={s.coin} />
                 <Text style={s.shopPrice}>{item.price}</Text>
               </View>
-              <View style={s.buyBtn}>
-                <Text style={s.buyBtnText}>KAUFEN</Text>
-              </View>
+              <View style={s.buyBtn}><Text style={s.buyBtnText}>KAUFEN</Text></View>
             </TouchableOpacity>
           ))}
         </View>
@@ -609,8 +820,6 @@ function ShopScreen({ onBack }: { onBack: () => void }) {
 // ═══════════════════════════════════════════════════
 const s = StyleSheet.create({
   container:  { flex: 1, backgroundColor: '#0A0704' },
-
-  // Header
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingTop: 54, paddingBottom: 10,
@@ -631,20 +840,17 @@ const s = StyleSheet.create({
   coin:       { width: 20, height: 20 },
   currText:   { fontSize: 13, color: '#C9A84C', fontWeight: '700' },
 
-  // Seat
-  seatFilled: { alignItems: 'center' },
-  seatChar:   { width: 46, height: 58, backgroundColor: 'transparent' },
-  seatName:   { fontSize: 8, color: '#C9A84C', fontWeight: '700', marginTop: 1 },
+  seatChar:   { width: 44, height: 56, backgroundColor: 'transparent' },
+  seatName:   { fontSize: 8, color: '#C9A84C', fontWeight: '700', marginTop: 3 },
   seatLvl:    { fontSize: 7, color: 'rgba(201,168,76,0.4)' },
-  seatEmpty: {
+  seatEmpty:  {
     width: 38, height: 38, borderRadius: 19,
     borderWidth: 1.5, borderColor: 'rgba(201,168,76,0.3)',
     borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.25)',
   },
-  seatPlus: { fontSize: 18, color: 'rgba(201,168,76,0.4)' },
+  seatPlus:   { fontSize: 18, color: 'rgba(201,168,76,0.4)' },
 
-  // Games on table
   gameOnTable: {
     width: 52, height: 52, borderRadius: 10,
     backgroundColor: 'rgba(0,0,0,0.55)',
@@ -660,14 +866,10 @@ const s = StyleSheet.create({
     fontSize: 7, color: 'rgba(201,168,76,0.7)', marginTop: 3,
     fontWeight: '700', letterSpacing: 0.5, textAlign: 'center', maxWidth: 60,
   },
-
-  // Section
   sectionTitle: {
     alignSelf: 'flex-start', fontSize: 10, color: 'rgba(201,168,76,0.5)',
     letterSpacing: 3, marginBottom: 10,
   },
-
-  // Bottom nav
   bottomNav: {
     flexDirection: 'row', gap: 14, marginTop: 8, paddingHorizontal: 20, width: '100%',
   },
@@ -680,9 +882,8 @@ const s = StyleSheet.create({
   navLabel:     { fontSize: 9, color: 'rgba(201,168,76,0.5)', letterSpacing: 2 },
   alchemistIcon:{ width: 32, height: 32 },
 
-  // Modals
   overlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.88)',
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.9)',
     alignItems: 'center', justifyContent: 'center', padding: 20,
   },
   modalBox: {
@@ -691,13 +892,17 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(201,168,76,0.3)',
   },
   modalTitle: {
-    fontSize: 16, color: '#C9A84C', fontWeight: '800',
-    letterSpacing: 2, marginBottom: 14, textAlign: 'center',
+    fontSize: 18, color: '#C9A84C', fontWeight: '800',
+    letterSpacing: 2, marginBottom: 4, textAlign: 'center',
+  },
+  modalSub: {
+    fontSize: 11, color: 'rgba(255,255,255,0.35)',
+    textAlign: 'center', letterSpacing: 1,
   },
   input: {
     padding: 14, backgroundColor: 'rgba(255,255,255,0.04)',
     borderWidth: 1, borderColor: 'rgba(201,168,76,0.2)',
-    borderRadius: 10, color: '#E8D5A3', fontSize: 14, marginBottom: 14,
+    borderRadius: 10, color: '#E8D5A3', fontSize: 16, marginBottom: 14,
   },
   cancelBtn: {
     flex: 1, padding: 12, alignItems: 'center',
@@ -707,22 +912,47 @@ const s = StyleSheet.create({
     flex: 2, padding: 14, alignItems: 'center',
     backgroundColor: '#C9A84C', borderRadius: 10,
   },
-  guestInlineBtn: {
-    padding: 12, alignItems: 'center', borderRadius: 10,
-    borderWidth: 1, borderColor: 'rgba(201,168,76,0.3)',
-    backgroundColor: 'rgba(201,168,76,0.06)',
-  },
 
-  // Path select
-  pathBtn: {
-    flex: 1, alignItems: 'center', padding: 10, borderRadius: 12,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+  // Pfad-Karten (groß)
+  pathCardBig: {
+    flex: 1, alignItems: 'center', padding: 14, borderRadius: 16,
+    borderWidth: 2, borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  pathCardBigActive: { backgroundColor: 'rgba(0,0,0,0.6)' },
+  pathCardTitle: { fontSize: 14, fontWeight: '900', letterSpacing: 2, marginTop: 8 },
+  pathCardDesc:  { fontSize: 9,  color: 'rgba(255,255,255,0.4)', marginTop: 4, textAlign: 'center' },
+
+  // Haarfarbe
+  colorSwatch: {
+    width: 44, height: 44, borderRadius: 22,
+    borderWidth: 2, borderColor: 'transparent',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  colorSwatchSelected: { borderColor: '#fff', transform: [{ scale: 1.15 }] },
+  colorLabel: { fontSize: 9, textAlign: 'center', marginTop: 4, fontWeight: '600' },
+
+  // Bart
+  beardOption: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    padding: 12, borderRadius: 10,
+    borderWidth: 1, borderColor: 'rgba(201,168,76,0.12)',
     backgroundColor: 'rgba(0,0,0,0.3)',
   },
-  pathBtnActive: { borderColor: '#C9A84C', backgroundColor: 'rgba(201,168,76,0.12)' },
-  pathLabel: { fontSize: 10, color: 'rgba(255,255,255,0.5)', marginTop: 4, fontWeight: '700' },
+  beardOptionActive: { borderColor: '#C9A84C', backgroundColor: 'rgba(201,168,76,0.08)' },
+  beardLabel: { fontSize: 13, color: 'rgba(255,255,255,0.6)', fontWeight: '600' },
 
-  // QR / Guest
+  // Info-Badges
+  infoBadge: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 20, borderWidth: 1,
+    borderColor: 'rgba(201,168,76,0.3)',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  infoBadgeText: { fontSize: 10, color: 'rgba(255,255,255,0.5)', fontWeight: '600' },
+
+  // QR / Gast
   codeBox: {
     alignItems: 'center', padding: 14,
     backgroundColor: 'rgba(201,168,76,0.08)',
@@ -733,23 +963,11 @@ const s = StyleSheet.create({
 
   // Schriftrolle
   scrollContainer: {
-    width: width * 0.9,
-    backgroundColor: '#1A0E04',
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: '#8B6914',
-    overflow: 'hidden',
-    shadowColor: '#C9A84C',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
+    width: width * 0.9, backgroundColor: '#1A0E04',
+    borderRadius: 4, borderWidth: 2, borderColor: '#8B6914', overflow: 'hidden',
+    shadowColor: '#C9A84C', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 20,
   },
-  scrollEnd: {
-    height: 18,
-    backgroundColor: '#8B6914',
-    borderWidth: 1,
-    borderColor: '#C9A84C',
-  },
+  scrollEnd:  { height: 18, backgroundColor: '#8B6914', borderWidth: 1, borderColor: '#C9A84C' },
   scrollBody: { padding: 24 },
   scrollTitle: {
     fontSize: 18, color: '#C9A84C', fontWeight: '900',
@@ -766,31 +984,27 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.3)',
   },
   diffBtnActive: { borderColor: '#C9A84C', backgroundColor: 'rgba(201,168,76,0.1)' },
-  diffLabel: { fontSize: 13, color: '#E8D5A3', fontWeight: '700' },
-  diffDesc:  { fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2 },
+  diffLabel:     { fontSize: 13, color: '#E8D5A3', fontWeight: '700' },
+  diffDesc:      { fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2 },
   scrollStartBtn: {
-    marginTop: 16, padding: 18,
+    marginTop: 8, padding: 18,
     backgroundColor: '#C9A84C', borderRadius: 12, alignItems: 'center',
-    shadowColor: '#C9A84C', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4, shadowRadius: 12,
+    shadowColor: '#C9A84C', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 12,
   },
   scrollStartText: { fontSize: 15, color: '#0A0704', fontWeight: '900', letterSpacing: 3 },
 
   // Shop
   shopGrid:     { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   shopCard: {
-    width: (width - 44) / 2,
-    backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 12,
-    padding: 12, borderWidth: 1, borderColor: 'rgba(201,168,76,0.15)', alignItems: 'center',
+    width: (width - 44) / 2, backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 12, padding: 12, borderWidth: 1,
+    borderColor: 'rgba(201,168,76,0.15)', alignItems: 'center',
   },
   shopItemImg:  { width: 70, height: 70, marginBottom: 8 },
   shopItemName: { fontSize: 12, color: '#E8D5A3', fontWeight: '700', textAlign: 'center' },
   shopItemDesc: { fontSize: 10, color: 'rgba(255,255,255,0.35)', textAlign: 'center', marginTop: 4, marginBottom: 8 },
   shopPriceRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 },
   shopPrice:    { fontSize: 13, fontWeight: '700', color: '#C9A84C' },
-  buyBtn: {
-    backgroundColor: '#C9A84C', paddingHorizontal: 16,
-    paddingVertical: 8, borderRadius: 8, width: '100%', alignItems: 'center',
-  },
-  buyBtnText: { fontSize: 11, color: '#0A0704', fontWeight: '800', letterSpacing: 1 },
+  buyBtn:       { backgroundColor: '#C9A84C', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, width: '100%', alignItems: 'center' },
+  buyBtnText:   { fontSize: 11, color: '#0A0704', fontWeight: '800', letterSpacing: 1 },
 });
