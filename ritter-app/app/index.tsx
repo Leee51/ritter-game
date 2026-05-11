@@ -316,28 +316,34 @@ function CharPreview({
 // ═══════════════════════════════════════════════════
 // CHARAKTER AM TISCH
 // ═══════════════════════════════════════════════════
-function SeatCharacter({ player, view }: { player: NonNullable<Player>; view: 'front' | 'back' | 'left' | 'right' }) {
+function SeatCharacter({ player, view, scale = 1 }: {
+  player: NonNullable<Player>;
+  view: 'front' | 'back' | 'left' | 'right';
+  scale?: number;
+}) {
   const hairHex = HAIR_COLORS.find(h => h.id === player.hair)?.hex ?? '#E8C84A';
-
   return (
-    <View style={{ alignItems: 'center' }}>
+    <View style={{ alignItems: 'center', transform: [{ scale }] }}>
+      <CharPreview
+        path={player.path} hair={player.hair} hairStyle={player.hairStyle ?? 0}
+        beard={player.beard} size={84} view={view}
+      />
+      {/* Bodenglow unter den Füßen */}
       <View style={{
-        borderWidth: 1.5, borderColor: hairHex, borderRadius: 6,
-        backgroundColor: 'transparent',
-        overflow: 'hidden',
+        width: 52, height: 10, borderRadius: 26, marginTop: -6,
+        backgroundColor: hairHex, opacity: 0.28,
+        shadowColor: hairHex, shadowRadius: 10, shadowOpacity: 0.9,
+      }} />
+      {/* Namensschild */}
+      <View style={{
+        marginTop: 4, paddingHorizontal: 8, paddingVertical: 3,
+        backgroundColor: 'rgba(10,5,2,0.75)',
+        borderRadius: 4, borderWidth: 0.5,
+        borderColor: 'rgba(201,168,76,0.45)', alignItems: 'center',
       }}>
-        {/* CharPreview mit Haar/Bart + richtiger Perspektive */}
-        <CharPreview
-          path={player.path}
-          hair={player.hair}
-          hairStyle={player.hairStyle ?? 0}
-          beard={player.beard}
-          size={84}
-          view={view}
-        />
+        <Text style={s.seatName}>{player.name}</Text>
+        <Text style={s.seatLvl}>Lvl {player.level}</Text>
       </View>
-      <Text style={s.seatName}>{player.name}</Text>
-      <Text style={s.seatLvl}>Lvl {player.level}</Text>
     </View>
   );
 }
@@ -1158,10 +1164,13 @@ function LobbyScreen({ players, setPlayers, onStartGame, onShop }: {
             );
           })}
 
-          {/* Spieler an Sitzen — über die Stühle im Tischbild */}
+          {/* Spieler stehen am Tischrand mit Perspektivskalierung */}
           {SEATS.map((pos, i) => {
             const player = players[i];
-            const hitW = 70, hitH = 110;
+            // Perspektive: hinten (top=0.156) → 0.55x, vorne (top=0.599) → 1.0x
+            const perspScale = 0.55 + 0.45 * (pos.top - 0.156) / (0.599 - 0.156);
+            const hitW = Math.round(72 * perspScale);
+            const hitH = Math.round(120 * perspScale);
             return (
               <TouchableOpacity
                 key={i}
@@ -1169,7 +1178,7 @@ function LobbyScreen({ players, setPlayers, onStartGame, onShop }: {
                   if (!player) setQuickNameFor(i);
                   else if (player.customized) setSeatInfoFor(i);
                 }}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 style={{
                   position: 'absolute',
                   top:  pos.top  * tableH  - hitH / 2,
@@ -1180,9 +1189,9 @@ function LobbyScreen({ players, setPlayers, onStartGame, onShop }: {
                 }}
               >
                 {player?.customized
-                  ? <SeatCharacter player={player} view={pos.view} />
+                  ? <SeatCharacter player={player} view={pos.view} scale={perspScale} />
                   : (
-                    <View style={s.seatEmpty}>
+                    <View style={[s.seatEmpty, { transform: [{ scale: perspScale }] }]}>
                       <Text style={s.seatPlus}>+</Text>
                     </View>
                   )
@@ -1459,16 +1468,16 @@ const s = StyleSheet.create({
   coin:       { width: 20, height: 20 },
   currText:   { fontSize: 13, color: '#C9A84C', fontWeight: '700' },
 
-  seatChar:   { width: 44, height: 56, backgroundColor: 'transparent' },
-  seatName:   { fontSize: 8, color: '#C9A84C', fontWeight: '700', marginTop: 3 },
-  seatLvl:    { fontSize: 7, color: 'rgba(201,168,76,0.4)' },
+  seatName:   { fontSize: 10, color: '#D4AA55', fontWeight: '700', letterSpacing: 0.3 },
+  seatLvl:    { fontSize: 8,  color: 'rgba(201,168,76,0.55)', letterSpacing: 0.5 },
   seatEmpty:  {
-    width: 38, height: 38, borderRadius: 19,
-    borderWidth: 1.5, borderColor: 'rgba(201,168,76,0.3)',
-    borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.25)',
+    width: 46, height: 46, borderRadius: 23,
+    borderWidth: 1, borderColor: 'rgba(201,168,76,0.45)',
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(201,168,76,0.07)',
+    shadowColor: '#C9A84C', shadowRadius: 8, shadowOpacity: 0.5,
   },
-  seatPlus:   { fontSize: 18, color: 'rgba(201,168,76,0.4)' },
+  seatPlus:   { fontSize: 22, color: 'rgba(201,168,76,0.55)' },
 
   gameOnTable: {
     width: 52, height: 52, borderRadius: 10,
