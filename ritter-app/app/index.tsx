@@ -9,21 +9,14 @@ import HeisseFackel from './HeisseFackel';
 import { supabase } from '../lib/supabase';
 import { getMyProfile, signIn, signUp, saveCharacter } from '../lib/api';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 // ═══════════════════════════════════════════════════
 // BILDER
 // ═══════════════════════════════════════════════════
 const IMG = {
   background: require('../assets/images/background/travern_background.png'),
-  tables: {
-    1:  require('../assets/images/Tables/Table lvl 1.png'),
-    5:  require('../assets/images/Tables/Table lvl 5.png'),
-    10: require('../assets/images/Tables/Table lvl 10.png'),
-    15: require('../assets/images/Tables/Table lvl 15.png'),
-    20: require('../assets/images/Tables/Table lvl 20.png'),
-    30: require('../assets/images/Tables/Table lvl 30.png'),
-  },
+  table: require('../assets/images/Tables/tisch ohne stuhl lvl 1.png'),
   games: {
     heisse_fackel: require('../assets/images/games/fackel (heissseFackel).png'),
     werwolf:       require('../assets/images/games/Geheimeschriftrolle (werwolf) .png'),
@@ -179,33 +172,23 @@ export type Player = {
 
 // 4 Items auf die braune Tischfläche — 2×2 Raster, zentriert auf die Tischfläche
 // Tischfläche: x=240–1018, y=265–940 (in 1254px Bild)
-// Raster-Punkte: x=450/810, y=440/720 → container-Koordinaten berechnet
+// Tisch 1024×1536 (transparent), Charaktere stehen am Tischrand
 const GAMES = [
-  { id: 'heisse_fackel', name: 'Heiße Fackel', locked: false, tablePos: { top: 0.28, left: 0.37 } },
-  { id: 'werwolf',       name: 'Werwolf',       locked: true,  tablePos: { top: 0.28, left: 0.63 } },
-  { id: 'imposter',      name: 'Imposter',       locked: true,  tablePos: { top: 0.48, left: 0.63 } },
-  { id: 'kutschen',      name: 'Kutschen Fahrt', locked: true,  tablePos: { top: 0.48, left: 0.37 } },
+  { id: 'heisse_fackel', name: 'Heiße Fackel', locked: false, tablePos: { top: 0.32, left: 0.37 } },
+  { id: 'werwolf',       name: 'Werwolf',       locked: true,  tablePos: { top: 0.32, left: 0.63 } },
+  { id: 'imposter',      name: 'Imposter',       locked: true,  tablePos: { top: 0.46, left: 0.63 } },
+  { id: 'kutschen',      name: 'Kutschen Fahrt', locked: true,  tablePos: { top: 0.46, left: 0.37 } },
 ];
 
-// Stühle — aus echten Pixel-Koordinaten des 1254×1254 Tischbildes berechnet
-// Formel: left = 0.06 + (px_x/1254)*0.88 | top = px_y/1254
+// Positionen rund um den stuhlfreien Tisch (1024×1536 Bild, transparent)
 const SEATS: { top: number; left: number; view: 'front' | 'back' | 'left' | 'right' }[] = [
-  { top: 0.87, left: 0.50, view: 'back'  }, // HOST     px(628,1095)
-  { top: 0.50, left: 0.17, view: 'right' }, // links    px(107,626)  → etwas nach rechts (zum Sitz)
-  { top: 0.19, left: 0.30, view: 'right' }, // oben-li  px(338,198)  → minimal tiefer (Sitzfläche)
-  { top: 0.10, left: 0.50, view: 'front' }, // oben-mi  px(628,105)
-  { top: 0.19, left: 0.70, view: 'left'  }, // oben-re  px(918,198)
-  { top: 0.43, left: 0.79, view: 'left'  }, // rechts   px(1085,510) → etwas nach links (zum Sitz)
+  { top: 0.72, left: 0.50, view: 'back'  }, // HOST (vorne-mitte)
+  { top: 0.41, left: 0.06, view: 'right' }, // links
+  { top: 0.22, left: 0.18, view: 'right' }, // oben-links
+  { top: 0.14, left: 0.50, view: 'front' }, // oben-mitte
+  { top: 0.22, left: 0.82, view: 'left'  }, // oben-rechts
+  { top: 0.41, left: 0.94, view: 'left'  }, // rechts
 ];
-
-function getTableLevel(level: number): keyof typeof IMG.tables {
-  if (level >= 30) return 30;
-  if (level >= 20) return 20;
-  if (level >= 15) return 15;
-  if (level >= 10) return 10;
-  if (level >= 5)  return 5;
-  return 1;
-}
 
 // ═══════════════════════════════════════════════════
 // SPRITE SHEET — eine Perspektive aus dem 5×2 Grid
@@ -1103,9 +1086,9 @@ function LobbyScreen({ players, setPlayers, onStartGame, onShop }: {
   };
 
   const mainPlayer   = players[0];
-  const tableSize    = width * 0.92;
-  const tableH       = tableSize * 0.88;
-  const tableLevel   = getTableLevel(mainPlayer?.level ?? 1);
+  // Tisch 1024×1536 — Höhe auf max 62% Bildschirmhöhe begrenzt
+  const tableH       = Math.min(width * 0.92 * 1.5, height * 0.62);
+  const tableSize    = tableH / 1.5;
   const gameCode     = '4F8K2R';
 
   return (
@@ -1141,15 +1124,9 @@ function LobbyScreen({ players, setPlayers, onStartGame, onShop }: {
       {/* ── TISCH — flex center ── */}
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
         <View style={{ width: tableSize, height: tableH }}>
-          {/* Tischbild: weißer PNG-Hintergrund wird durch Clipping der Ecken entfernt */}
-          <View style={{
-            position: 'absolute', width: '100%', height: '100%',
-            overflow: 'hidden', borderRadius: tableSize * 0.13,
-          }}>
-            <Image source={IMG.tables[tableLevel]}
-              style={{ width: '100%', height: '100%' }}
-              resizeMode="contain" />
-          </View>
+          <Image source={IMG.table}
+            style={{ width: '100%', height: '100%', position: 'absolute' }}
+            resizeMode="contain" />
 
           {/* Spiele auf der Tischfläche — leicht rotiert */}
           {GAMES.map((game, gi) => {
