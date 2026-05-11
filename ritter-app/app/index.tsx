@@ -179,20 +179,20 @@ export type Player = {
 
 // 4 Items auf die braune Tischfläche — je ein Quadrant der Mitte
 const GAMES = [
-  { id: 'heisse_fackel', name: 'Heiße Fackel', locked: false, tablePos: { top: 0.42, left: 0.36 } },
-  { id: 'werwolf',       name: 'Werwolf',       locked: true,  tablePos: { top: 0.40, left: 0.60 } },
-  { id: 'imposter',      name: 'Imposter',       locked: true,  tablePos: { top: 0.56, left: 0.62 } },
-  { id: 'kutschen',      name: 'Kutschen Fahrt', locked: true,  tablePos: { top: 0.55, left: 0.37 } },
+  { id: 'heisse_fackel', name: 'Heiße Fackel', locked: false, tablePos: { top: 0.33, left: 0.35 } },
+  { id: 'werwolf',       name: 'Werwolf',       locked: true,  tablePos: { top: 0.31, left: 0.58 } },
+  { id: 'imposter',      name: 'Imposter',       locked: true,  tablePos: { top: 0.47, left: 0.59 } },
+  { id: 'kutschen',      name: 'Kutschen Fahrt', locked: true,  tablePos: { top: 0.46, left: 0.36 } },
 ];
 
 // Stühle — transparent über die bereits im Tischbild eingezeichneten Stühle
 const SEATS: { top: number; left: number; view: 'front' | 'back' | 'left' | 'right' }[] = [
-  { top: 0.76, left: 0.50, view: 'back'  }, // unten-mitte  (Host)
-  { top: 0.63, left: 0.21, view: 'right' }, // unten-links
-  { top: 0.38, left: 0.24, view: 'right' }, // oben-links
-  { top: 0.24, left: 0.50, view: 'front' }, // oben-mitte
-  { top: 0.38, left: 0.76, view: 'left'  }, // oben-rechts
-  { top: 0.63, left: 0.78, view: 'left'  }, // unten-rechts
+  { top: 0.80, left: 0.50, view: 'back'  }, // unten-mitte  (Host)
+  { top: 0.65, left: 0.14, view: 'right' }, // unten-links
+  { top: 0.38, left: 0.18, view: 'right' }, // oben-links
+  { top: 0.22, left: 0.50, view: 'front' }, // oben-mitte
+  { top: 0.38, left: 0.82, view: 'left'  }, // oben-rechts
+  { top: 0.65, left: 0.86, view: 'left'  }, // unten-rechts
 ];
 
 function getTableLevel(level: number): keyof typeof IMG.tables {
@@ -317,7 +317,7 @@ function CharPreview({
 // ═══════════════════════════════════════════════════
 function SeatCharacter({ player, view }: { player: NonNullable<Player>; view: 'front' | 'back' | 'left' | 'right' }) {
   const hairHex = HAIR_COLORS.find(h => h.id === player.hair)?.hex ?? '#E8C84A';
-  const charH   = 56;
+  const charH   = 46;
 
   return (
     <View style={{ alignItems: 'center' }}>
@@ -1154,7 +1154,7 @@ function LobbyScreen({ players, setPlayers, onStartGame, onShop }: {
           {/* Spieler an Sitzen — über die Stühle im Tischbild */}
           {SEATS.map((pos, i) => {
             const player = players[i];
-            const hitW = 64, hitH = 72;
+            const hitW = 56, hitH = 62;
             return (
               <TouchableOpacity
                 key={i}
