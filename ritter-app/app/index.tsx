@@ -177,22 +177,25 @@ export type Player = {
   customized: boolean;
 } | null;
 
-// 4 Items auf die braune Tischfläche — je ein Quadrant der Mitte
+// 4 Items auf die braune Tischfläche — 2×2 Raster, zentriert auf die Tischfläche
+// Tischfläche: x=240–1018, y=265–940 (in 1254px Bild)
+// Raster-Punkte: x=450/810, y=440/720 → container-Koordinaten berechnet
 const GAMES = [
-  { id: 'heisse_fackel', name: 'Heiße Fackel', locked: false, tablePos: { top: 0.22, left: 0.34 } },
-  { id: 'werwolf',       name: 'Werwolf',       locked: true,  tablePos: { top: 0.21, left: 0.57 } },
-  { id: 'imposter',      name: 'Imposter',       locked: true,  tablePos: { top: 0.36, left: 0.57 } },
-  { id: 'kutschen',      name: 'Kutschen Fahrt', locked: true,  tablePos: { top: 0.35, left: 0.34 } },
+  { id: 'heisse_fackel', name: 'Heiße Fackel', locked: false, tablePos: { top: 0.35, left: 0.37 } },
+  { id: 'werwolf',       name: 'Werwolf',       locked: true,  tablePos: { top: 0.35, left: 0.63 } },
+  { id: 'imposter',      name: 'Imposter',       locked: true,  tablePos: { top: 0.57, left: 0.63 } },
+  { id: 'kutschen',      name: 'Kutschen Fahrt', locked: true,  tablePos: { top: 0.57, left: 0.37 } },
 ];
 
-// Stühle — transparent über die bereits im Tischbild eingezeichneten Stühle
+// Stühle — aus echten Pixel-Koordinaten des 1254×1254 Tischbildes berechnet
+// Formel: left = 0.06 + (px_x/1254)*0.88 | top = px_y/1254
 const SEATS: { top: number; left: number; view: 'front' | 'back' | 'left' | 'right' }[] = [
-  { top: 0.82, left: 0.50, view: 'back'  }, // unten-mitte  (Host)
-  { top: 0.67, left: 0.10, view: 'right' }, // unten-links
-  { top: 0.38, left: 0.13, view: 'right' }, // oben-links
-  { top: 0.20, left: 0.50, view: 'front' }, // oben-mitte
-  { top: 0.38, left: 0.87, view: 'left'  }, // oben-rechts
-  { top: 0.67, left: 0.90, view: 'left'  }, // unten-rechts
+  { top: 0.87, left: 0.50, view: 'back'  }, // HOST     px(628,1095)
+  { top: 0.50, left: 0.17, view: 'right' }, // links    px(107,626)  → etwas nach rechts (zum Sitz)
+  { top: 0.19, left: 0.30, view: 'right' }, // oben-li  px(338,198)  → minimal tiefer (Sitzfläche)
+  { top: 0.10, left: 0.50, view: 'front' }, // oben-mi  px(628,105)
+  { top: 0.19, left: 0.70, view: 'left'  }, // oben-re  px(918,198)
+  { top: 0.43, left: 0.79, view: 'left'  }, // rechts   px(1085,510) → etwas nach links (zum Sitz)
 ];
 
 function getTableLevel(level: number): keyof typeof IMG.tables {
@@ -286,17 +289,19 @@ function CharPreview({
   // aspect ≈ 0.48
   const charH  = size * 1.3;
   const charW  = charH * (CHAR_W / CHAR_COLS) / (CHAR_H / CHAR_ROWS);
-  const hairW  = charW * 1.1;
-  const beardW = charW * 0.85;
+  const hairW  = charW * 1.05;
+  const beardW = charW * 0.80;
 
-  // Sprite beginnt bei bottom:0 im Container (height = charH + size*0.1)
-  // → Sprite-Top = size*0.1 vom Container-Top
+  // Sprite sitzt am BOTTOM des Containers (height = charH + size*0.1)
+  // spriteTop = Abstand vom Container-Top bis Sprite-Top = size*0.1
   const spriteTop = size * 0.1;
-  // Kopf ist ca. 8 % des Sprites von oben
-  const hairTop  = spriteTop + charH * 0.02;   // Haar über dem Kopf
-  const beardTop = spriteTop + charH * 0.38;   // Bart auf Kinnhöhe
+  // Aus Sprite-Analyse: Kopf-Oberkante bei ~8% der Sprite-Höhe
+  // Haar-Bild soll leicht über dem Kopf beginnen → +6%
+  const hairTop  = spriteTop + charH * 0.06;
+  // Kinn / Bartansatz bei ~30% der Sprite-Höhe
+  const beardTop = spriteTop + charH * 0.30;
 
-  // Haar & Bart nur bei Front/Seiten-Ansicht sinnvoll
+  // Haar & Bart nur bei sichtbaren Gesichtsansichten
   const showOverlays = view === 'front' || view === 'left' || view === 'right';
 
   return (
@@ -308,14 +313,14 @@ function CharPreview({
       {/* Haar */}
       {showOverlays && hairImg && (
         <Image source={hairImg}
-          style={{ width: hairW, height: charH * 0.32,
+          style={{ width: hairW, height: charH * 0.22,
             position: 'absolute', top: hairTop, alignSelf: 'center', zIndex: 3 }}
           resizeMode="contain" />
       )}
       {/* Bart */}
       {showOverlays && beardImg && (
         <Image source={beardImg}
-          style={{ width: beardW, height: charH * 0.30,
+          style={{ width: beardW, height: charH * 0.20,
             position: 'absolute', top: beardTop, alignSelf: 'center', zIndex: 3 }}
           resizeMode="contain" />
       )}
