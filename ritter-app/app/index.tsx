@@ -1142,7 +1142,7 @@ function LobbyScreen({ players, setPlayers, onStartGame, onShop }: {
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
         <View style={{ width: tableSize, height: tableH }}>
           <Image source={IMG.tables[tableLevel]}
-            style={{ width: '100%', height: '100%', position: 'absolute' }}
+            style={{ width: '100%', height: '100%', position: 'absolute', blendMode: 'multiply' } as any}
             resizeMode="contain" />
 
           {/* Spiele auf der Tischfläche — leicht rotiert */}
