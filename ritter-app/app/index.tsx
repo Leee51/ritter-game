@@ -181,10 +181,10 @@ export type Player = {
 // Tischfläche: x=240–1018, y=265–940 (in 1254px Bild)
 // Raster-Punkte: x=450/810, y=440/720 → container-Koordinaten berechnet
 const GAMES = [
-  { id: 'heisse_fackel', name: 'Heiße Fackel', locked: false, tablePos: { top: 0.35, left: 0.37 } },
-  { id: 'werwolf',       name: 'Werwolf',       locked: true,  tablePos: { top: 0.35, left: 0.63 } },
-  { id: 'imposter',      name: 'Imposter',       locked: true,  tablePos: { top: 0.57, left: 0.63 } },
-  { id: 'kutschen',      name: 'Kutschen Fahrt', locked: true,  tablePos: { top: 0.57, left: 0.37 } },
+  { id: 'heisse_fackel', name: 'Heiße Fackel', locked: false, tablePos: { top: 0.28, left: 0.37 } },
+  { id: 'werwolf',       name: 'Werwolf',       locked: true,  tablePos: { top: 0.28, left: 0.63 } },
+  { id: 'imposter',      name: 'Imposter',       locked: true,  tablePos: { top: 0.48, left: 0.63 } },
+  { id: 'kutschen',      name: 'Kutschen Fahrt', locked: true,  tablePos: { top: 0.48, left: 0.37 } },
 ];
 
 // Stühle — aus echten Pixel-Koordinaten des 1254×1254 Tischbildes berechnet
@@ -347,7 +347,7 @@ function SeatCharacter({ player, view }: { player: NonNullable<Player>; view: 'f
           hair={player.hair}
           hairStyle={player.hairStyle ?? 0}
           beard={player.beard}
-          size={30}
+          size={42}
           view={view}
         />
       </View>
