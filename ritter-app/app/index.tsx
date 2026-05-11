@@ -178,19 +178,20 @@ export type Player = {
 } | null;
 
 const GAMES = [
-  { id: 'heisse_fackel', name: 'Heiße Fackel', locked: false, tablePos: { top: 0.38, left: 0.20 } },
-  { id: 'werwolf',       name: 'Werwolf',       locked: true,  tablePos: { top: 0.28, left: 0.55 } },
-  { id: 'imposter',      name: 'Imposter',       locked: true,  tablePos: { top: 0.50, left: 0.68 } },
-  { id: 'kutschen',      name: 'Kutschen Fahrt', locked: true,  tablePos: { top: 0.52, left: 0.35 } },
+  { id: 'heisse_fackel', name: 'Heiße Fackel', locked: false, tablePos: { top: 0.42, left: 0.22 } },
+  { id: 'werwolf',       name: 'Werwolf',       locked: true,  tablePos: { top: 0.30, left: 0.58 } },
+  { id: 'imposter',      name: 'Imposter',       locked: true,  tablePos: { top: 0.54, left: 0.65 } },
+  { id: 'kutschen',      name: 'Kutschen Fahrt', locked: true,  tablePos: { top: 0.55, left: 0.38 } },
 ];
 
+// Stühle rund um den Tisch — Positionen relativ zu tableH / tableSize
 const SEATS: { top: number; left: number; view: 'front' | 'back' | 'left' | 'right' }[] = [
-  { top: 0.76, left: 0.50, view: 'back'  }, // host bottom-center (facing away)
-  { top: 0.60, left: 0.10, view: 'right' }, // left side
-  { top: 0.28, left: 0.06, view: 'front' }, // upper-left
-  { top: 0.05, left: 0.50, view: 'front' }, // top-center
-  { top: 0.28, left: 0.92, view: 'front' }, // upper-right
-  { top: 0.60, left: 0.88, view: 'left'  }, // right side
+  { top: 0.82, left: 0.50, view: 'back'  }, // unten-mitte  (Host)
+  { top: 0.68, left: 0.08, view: 'right' }, // unten-links
+  { top: 0.22, left: 0.04, view: 'right' }, // oben-links
+  { top: 0.02, left: 0.50, view: 'front' }, // oben-mitte
+  { top: 0.22, left: 0.94, view: 'left'  }, // oben-rechts
+  { top: 0.68, left: 0.90, view: 'left'  }, // unten-rechts
 ];
 
 function getTableLevel(level: number): keyof typeof IMG.tables {
@@ -382,6 +383,49 @@ function ProfileModal({ visible, player, onClose }: {
 
           <TouchableOpacity onPress={onClose} style={[s.confirmBtn, { flex: 0, paddingHorizontal: 32 }]}>
             <Text style={{ color: '#0A0704', fontWeight: '800', fontSize: 13 }}>SCHLIESSEN</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ═══════════════════════════════════════════════════
+// QUICK NAME MODAL (Gast / Mitspieler — nur Name)
+// ═══════════════════════════════════════════════════
+function QuickNameModal({ visible, onConfirm, onCancel }: {
+  visible: boolean;
+  onConfirm: (name: string) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState('');
+  useEffect(() => { if (!visible) setName(''); }, [visible]);
+
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <View style={s.overlay}>
+        <View style={s.modalBox}>
+          <Text style={s.modalTitle}>⚔ NAME</Text>
+          <Text style={s.modalSub}>Wie heißt du, Recke?</Text>
+          <TextInput
+            style={[s.input, { marginTop: 16 }]}
+            placeholder="Name eingeben..."
+            placeholderTextColor="rgba(255,255,255,0.25)"
+            value={name}
+            onChangeText={setName}
+            autoFocus
+            maxLength={16}
+            onSubmitEditing={() => name.trim() && onConfirm(name.trim())}
+          />
+          <TouchableOpacity
+            style={[s.scrollStartBtn, !name.trim() && { opacity: 0.4 }]}
+            onPress={() => name.trim() && onConfirm(name.trim())}
+            disabled={!name.trim()}
+          >
+            <Text style={s.scrollStartText}>BEITRETEN →</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onCancel} style={{ marginTop: 12, alignItems: 'center' }}>
+            <Text style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11 }}>Abbrechen</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -796,10 +840,9 @@ function AuthScreen({
 // HAUPT APP
 // ═══════════════════════════════════════════════════
 export default function App() {
-  type AppState = 'loading' | 'auth' | 'createChar' | 'lobby' | 'game' | 'shop';
+  type AppState = 'loading' | 'auth' | 'createChar' | 'guestName' | 'lobby' | 'game' | 'shop';
   const [appState, setAppState]       = useState<AppState>('loading');
   const [activeGame, setActiveGame]   = useState<string | null>(null);
-  const [isGuest, setIsGuest]         = useState(false);
   const [lobbyPlayers, setLobbyPlayers] = useState<Player[]>([null, null, null, null, null, null]);
 
   // ── beim Start: Supabase Session prüfen ──
@@ -855,13 +898,11 @@ export default function App() {
     }
   };
 
+  // Vollständiger Creator — nur bei Konto-Registrierung
   const handleCharCreated = async (data: {
     name: string; path: 'light' | 'shadow'; hair: HairColor; hairStyle: HairStyle; beard: BeardStyle;
   }) => {
-    // Charakter in Supabase speichern (nur wenn kein Gast)
-    if (!isGuest) {
-      await saveCharacter(data.hair, data.hairStyle, data.beard, data.path);
-    }
+    await saveCharacter(data.hair, data.hairStyle, data.beard, data.path);
     const profile = await getMyProfile().catch(() => null);
     const player: NonNullable<Player> = {
       name: profile?.username ?? data.name,
@@ -870,6 +911,21 @@ export default function App() {
       hair: data.hair,
       hairStyle: data.hairStyle,
       beard: data.beard,
+      customized: true,
+    };
+    setLobbyPlayers([player, null, null, null, null, null]);
+    setAppState('lobby');
+  };
+
+  // Gast — nur Name, Standard-Charakter
+  const handleGuestName = (name: string) => {
+    const player: NonNullable<Player> = {
+      name,
+      path: 'light',
+      level: 1,
+      hair: 'blonde',
+      hairStyle: 0,
+      beard: 'none',
       customized: true,
     };
     setLobbyPlayers([player, null, null, null, null, null]);
@@ -895,12 +951,29 @@ export default function App() {
     return (
       <AuthScreen
         onAuthSuccess={handleAuthSuccess}
-        onGuestPlay={() => { setIsGuest(true); setAppState('createChar'); }}
+        onGuestPlay={() => setAppState('guestName')}
       />
     );
   }
 
-  // ── Charakter Erstellen ──
+  // ── Gast: nur Name ──
+  if (appState === 'guestName') {
+    return (
+      <View style={s.container}>
+        <StatusBar barStyle="light-content" />
+        <ImageBackground source={IMG.background} style={StyleSheet.absoluteFill} resizeMode="cover">
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.76)' }]} />
+        </ImageBackground>
+        <QuickNameModal
+          visible={true}
+          onConfirm={handleGuestName}
+          onCancel={() => setAppState('auth')}
+        />
+      </View>
+    );
+  }
+
+  // ── Charakter Erstellen (nur bei Konto-Registrierung) ──
   if (appState === 'createChar') {
     return (
       <View style={s.container}>
@@ -955,7 +1028,7 @@ function LobbyScreen({ players, setPlayers, onStartGame, onShop }: {
   onStartGame: (id: string) => void;
   onShop: () => void;
 }) {
-  const [creationFor, setCreationFor]   = useState<number | null>(null);
+  const [quickNameFor, setQuickNameFor] = useState<number | null>(null);
   const [seatInfoFor, setSeatInfoFor]   = useState<number | null>(null);
   const [guestModal, setGuestModal]     = useState(false);
   const [profileModal, setProfileModal] = useState(false);
@@ -964,20 +1037,20 @@ function LobbyScreen({ players, setPlayers, onStartGame, onShop }: {
   const [difficulty, setDifficulty]     = useState<1|2|3>(1);
   const scrollAnim                      = useRef(new Animated.Value(0)).current;
 
-  // Kein Auto-Creator mehr — App-State steuert den Hauptspieler-Flow
-
-  const handleCreationConfirm = (idx: number, data: {
-    name: string; path: 'light' | 'shadow'; hair: HairColor; hairStyle: HairStyle; beard: BeardStyle;
-  }) => {
+  // Mitspieler hinzufügen — nur Name, Standard-Charakter
+  const handleQuickName = (idx: number, name: string) => {
     const updated = [...players];
     updated[idx] = {
-      name: data.name, path: data.path,
-      level: idx === 0 ? 3 : 1,
-      hair: data.hair, hairStyle: data.hairStyle, beard: data.beard,
+      name,
+      path: 'light',
+      level: 1,
+      hair: 'blonde',
+      hairStyle: 0,
+      beard: 'none',
       customized: true,
     };
     setPlayers(updated);
-    setCreationFor(null);
+    setQuickNameFor(null);
   };
 
   const removePlayer = (i: number) => {
@@ -1039,26 +1112,33 @@ function LobbyScreen({ players, setPlayers, onStartGame, onShop }: {
             style={{ width: '100%', height: '100%', position: 'absolute' }}
             resizeMode="contain" />
 
-          {/* Spiele auf dem Tisch */}
-          {GAMES.map(game => (
-            <TouchableOpacity key={game.id} onPress={() => openScroll(game)} style={{
-              position: 'absolute',
-              top: game.tablePos.top * tableH - 28,
-              left: game.tablePos.left * tableSize - 28,
-              alignItems: 'center',
-            }}>
-              <View style={[s.gameOnTable, game.locked && { opacity: 0.5 }]}>
-                <Image source={IMG.games[game.id as keyof typeof IMG.games]}
-                  style={{ width: 42, height: 42 }} resizeMode="contain" />
-                {game.locked && (
-                  <View style={s.lockOverlay}>
-                    <Text style={{ fontSize: 11 }}>🔒</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={s.gameOnTableLabel}>{game.name}</Text>
-            </TouchableOpacity>
-          ))}
+          {/* Spiele auf dem Tisch — leicht gedreht als ob sie liegen */}
+          {GAMES.map((game, gi) => {
+            const rotations = [-8, 5, -4, 7];
+            const rot = rotations[gi];
+            return (
+              <TouchableOpacity key={game.id} onPress={() => openScroll(game)} style={{
+                position: 'absolute',
+                top: game.tablePos.top * tableH - 34,
+                left: game.tablePos.left * tableSize - 30,
+                alignItems: 'center',
+              }}>
+                <View style={[s.gameOnTable, game.locked && { opacity: 0.55 },
+                  { transform: [{ rotate: `${rot}deg` }] }]}>
+                  <Image source={IMG.games[game.id as keyof typeof IMG.games]}
+                    style={{ width: 44, height: 44 }} resizeMode="contain" />
+                  {game.locked && (
+                    <View style={s.lockOverlay}>
+                      <Text style={{ fontSize: 11 }}>🔒</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={[s.gameOnTableLabel, { transform: [{ rotate: `${rot * 0.4}deg` }] }]}>
+                  {game.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
 
           {/* Spieler an Sitzen */}
           {SEATS.map((pos, i) => {
@@ -1068,7 +1148,7 @@ function LobbyScreen({ players, setPlayers, onStartGame, onShop }: {
                 key={i}
                 onPress={() => {
                   if (!player) {
-                    setCreationFor(i);
+                    setQuickNameFor(i);
                   } else if (player.customized) {
                     setSeatInfoFor(i);
                   }
@@ -1109,14 +1189,11 @@ function LobbyScreen({ players, setPlayers, onStartGame, onShop }: {
         </View>
       </ScrollView>
 
-      {/* ══ CHARAKTER ERSTELLEN ══ */}
-      <CharacterCreationModal
-        visible={creationFor !== null}
-        isMainPlayer={creationFor === 0}
-        initialStep="name"
-        onConfirm={(data) => creationFor !== null && handleCreationConfirm(creationFor, data)}
-        onCancel={creationFor !== 0 ? () => setCreationFor(null) : undefined}
-        onOpenGuest={creationFor !== 0 ? () => { setCreationFor(null); setGuestModal(true); } : undefined}
+      {/* ══ MITSPIELER HINZUFÜGEN ══ */}
+      <QuickNameModal
+        visible={quickNameFor !== null}
+        onConfirm={(name) => quickNameFor !== null && handleQuickName(quickNameFor, name)}
+        onCancel={() => setQuickNameFor(null)}
       />
 
       {/* ══ PROFIL MODAL ══ */}
