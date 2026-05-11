@@ -177,12 +177,12 @@ export type Player = {
   customized: boolean;
 } | null;
 
-// Items liegen auf der Tischfläche (braune Mitte des Achtecktischs)
+// 4 Items auf die braune Tischfläche — je ein Quadrant der Mitte
 const GAMES = [
-  { id: 'heisse_fackel', name: 'Heiße Fackel', locked: false, tablePos: { top: 0.46, left: 0.30 } },
-  { id: 'werwolf',       name: 'Werwolf',       locked: true,  tablePos: { top: 0.38, left: 0.60 } },
-  { id: 'imposter',      name: 'Imposter',       locked: true,  tablePos: { top: 0.57, left: 0.62 } },
-  { id: 'kutschen',      name: 'Kutschen Fahrt', locked: true,  tablePos: { top: 0.56, left: 0.34 } },
+  { id: 'heisse_fackel', name: 'Heiße Fackel', locked: false, tablePos: { top: 0.44, left: 0.33 } },
+  { id: 'werwolf',       name: 'Werwolf',       locked: true,  tablePos: { top: 0.36, left: 0.58 } },
+  { id: 'imposter',      name: 'Imposter',       locked: true,  tablePos: { top: 0.55, left: 0.60 } },
+  { id: 'kutschen',      name: 'Kutschen Fahrt', locked: true,  tablePos: { top: 0.54, left: 0.35 } },
 ];
 
 // Stühle — transparent über die bereits im Tischbild eingezeichneten Stühle
@@ -205,6 +205,63 @@ function getTableLevel(level: number): keyof typeof IMG.tables {
 }
 
 // ═══════════════════════════════════════════════════
+// SPRITE SHEET — eine Perspektive aus dem 5×2 Grid
+// ═══════════════════════════════════════════════════
+// Sprite-Sheet: 1374 × 1145 px, 5 Spalten × 2 Zeilen
+// Zeile 0 (oben), Spalte 0-4: diagonal-links, FRONT, RECHTS, diagonal-rechts, zurück-rechts
+// Zeile 1 (unten), Spalte 0-4: links-vorne, front-alt, ZURÜCK, zurück-links, rechts-vorne
+const CHAR_COLS = 5;
+const CHAR_ROWS = 2;
+const CHAR_W    = 1374;
+const CHAR_H    = 1145;
+
+// [spalte, zeile, spiegeln?]
+const CHAR_VIEW: Record<'front'|'back'|'left'|'right', [number,number,boolean]> = {
+  front: [1, 0, false],
+  back:  [2, 1, false],
+  right: [2, 0, false],
+  left:  [2, 0, true ],  // Spiegel der rechten Seite
+};
+
+function CharSprite({
+  path, level = 1, view = 'front', height = 80,
+}: {
+  path: 'light' | 'shadow';
+  level?: number;
+  view?: 'front'|'back'|'left'|'right';
+  height?: number;
+}) {
+  const sheet = path === 'light'
+    ? IMG.chars.light[Math.min(level - 1, 8)]
+    : IMG.chars.shadow[Math.min(level - 1, 8)];
+
+  const cellW  = CHAR_W / CHAR_COLS;          // 274.8
+  const cellH  = CHAR_H / CHAR_ROWS;          // 572.5
+  const aspect = cellW / cellH;               // ≈ 0.48
+
+  const dispH  = height;
+  const dispW  = dispH * aspect;
+  const [col, row, flip] = CHAR_VIEW[view];
+
+  return (
+    <View style={{ width: dispW, height: dispH, overflow: 'hidden',
+      transform: flip ? [{ scaleX: -1 }] : undefined }}>
+      <Image
+        source={sheet}
+        style={{
+          width: dispW * CHAR_COLS,
+          height: dispH * CHAR_ROWS,
+          position: 'absolute',
+          left: -col * dispW,
+          top:  -row * dispH,
+        }}
+        resizeMode="stretch"
+      />
+    </View>
+  );
+}
+
+// ═══════════════════════════════════════════════════
 // CHARAKTER-VORSCHAU (mit echten Haar & Bart Bildern)
 // ═══════════════════════════════════════════════════
 function CharPreview({
@@ -216,42 +273,34 @@ function CharPreview({
   beard: BeardStyle;
   size?: number;
 }) {
-  const charImg    = path === 'light' ? IMG.chars.light[0] : IMG.chars.shadow[0];
   const hairImg    = HAIR_IMGS[hair]?.[hairStyle];
   const beardColor = beardColorFromHair(hair);
   const beardImg   = beard !== 'none' ? BEARD_IMGS[beardColor]?.[beard] : null;
 
-  // Container: size × size*1.4
-  // Character: size × size*1.3 anchored to bottom → character top = size*0.1
-  // Head (top ~15% of character): character_top + 0.15*size*1.3 ≈ size*0.1 + 0.20 = size*0.30
-  // Chin (~42% of character height): size*0.1 + 0.42*size*1.3 ≈ size*0.646
-  const hairW  = size * 0.84;
-  const beardW = size * 0.58;
+  // CharSprite Frontansicht: aspect ≈ 0.48 → charW ≈ size * 1.3 * 0.48
+  const charH  = size * 1.3;
+  const charW  = charH * (CHAR_W / CHAR_COLS) / (CHAR_H / CHAR_ROWS); // ≈ charH * 0.48
+  const hairW  = charW * 0.95;
+  const beardW = charW * 0.75;
 
   return (
-    <View style={{ width: size, height: size * 1.4, alignItems: 'center' }}>
-      {/* Charakter — front facing */}
-      <Image source={charImg}
-        style={{ width: size, height: size * 1.3, position: 'absolute', bottom: 0 }}
-        resizeMode="contain" />
-      {/* Haar — sits on the head (top ~5% from container top) */}
+    <View style={{ width: charW, height: charH + size * 0.1, alignItems: 'center' }}>
+      {/* Charakter — nur Frontansicht aus Sprite Sheet */}
+      <View style={{ position: 'absolute', bottom: 0 }}>
+        <CharSprite path={path} level={1} view="front" height={charH} />
+      </View>
+      {/* Haar */}
       {hairImg && (
         <Image source={hairImg}
-          style={{
-            width: hairW, height: size * 0.38,
-            position: 'absolute', top: size * 0.04,
-            alignSelf: 'center', zIndex: 3,
-          }}
+          style={{ width: hairW, height: charH * 0.30,
+            position: 'absolute', top: size * 0.02, alignSelf: 'center', zIndex: 3 }}
           resizeMode="contain" />
       )}
-      {/* Bart — at chin level (~62% from container top) */}
+      {/* Bart */}
       {beardImg && (
         <Image source={beardImg}
-          style={{
-            width: beardW, height: size * 0.40,
-            position: 'absolute', top: size * 0.62,
-            alignSelf: 'center', zIndex: 3,
-          }}
+          style={{ width: beardW, height: charH * 0.28,
+            position: 'absolute', top: charH * 0.44, alignSelf: 'center', zIndex: 3 }}
           resizeMode="contain" />
       )}
     </View>
@@ -262,60 +311,18 @@ function CharPreview({
 // CHARAKTER AM TISCH
 // ═══════════════════════════════════════════════════
 function SeatCharacter({ player, view }: { player: NonNullable<Player>; view: 'front' | 'back' | 'left' | 'right' }) {
-  const hairHex   = HAIR_COLORS.find(h => h.id === player.hair)?.hex ?? '#E8C84A';
-  const charImg   = player.path === 'light'
-    ? IMG.chars.light[Math.min(player.level - 1, 8)]
-    : IMG.chars.shadow[Math.min(player.level - 1, 8)];
-  const hairImg   = HAIR_IMGS[player.hair]?.[player.hairStyle ?? 0];
-  const beardColor = beardColorFromHair(player.hair);
-  const beardImg  = player.beard !== 'none' ? BEARD_IMGS[beardColor]?.[player.beard] : null;
-  const sz = 44;
-
-  // Perspective transforms based on view
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let charTransform: any[] = [];
-  let charOpacity = 1;
-  if (view === 'back') {
-    charTransform = [{ rotate: '180deg' }];
-    charOpacity = 0.75;
-  } else if (view === 'left') {
-    charTransform = [{ scaleX: -1 }];
-  }
-  // 'front' and 'right': no transform
+  const hairHex = HAIR_COLORS.find(h => h.id === player.hair)?.hex ?? '#E8C84A';
+  const charH   = 56;
 
   return (
     <View style={{ alignItems: 'center' }}>
       <View style={{
         borderWidth: 1.5, borderColor: hairHex, borderRadius: 6,
-        backgroundColor: 'transparent', padding: 1,
-        width: sz + 4, height: sz * 1.3 + 4,
+        backgroundColor: 'transparent', padding: 2,
+        overflow: 'hidden',
       }}>
-        {/* Charakter */}
-        <Image
-          source={charImg}
-          style={{ width: sz, height: sz * 1.25, transform: charTransform, opacity: charOpacity }}
-          resizeMode="contain"
-        />
-        {/* Haar */}
-        {hairImg && (
-          <Image source={hairImg}
-            style={{
-              position: 'absolute', top: 0, alignSelf: 'center',
-              width: sz * 0.75, height: sz * 0.4, zIndex: 3,
-              transform: charTransform, opacity: charOpacity,
-            }}
-            resizeMode="contain" />
-        )}
-        {/* Bart — chin at ~48% of character height */}
-        {beardImg && (
-          <Image source={beardImg}
-            style={{
-              position: 'absolute', top: sz * 0.46, alignSelf: 'center',
-              width: sz * 0.6, height: sz * 0.32, zIndex: 3,
-              transform: charTransform, opacity: charOpacity,
-            }}
-            resizeMode="contain" />
-        )}
+        {/* Korrekte Perspektive direkt aus Sprite Sheet */}
+        <CharSprite path={player.path} level={player.level} view={view} height={charH} />
       </View>
       <Text style={s.seatName}>{player.name}</Text>
       <Text style={s.seatLvl}>Lvl {player.level}</Text>
@@ -1139,10 +1146,10 @@ function LobbyScreen({ players, setPlayers, onStartGame, onShop }: {
             );
           })}
 
-          {/* Spieler an Sitzen — transparent über die Stühle im Bild */}
+          {/* Spieler an Sitzen — über die Stühle im Tischbild */}
           {SEATS.map((pos, i) => {
             const player = players[i];
-            const hitW = 52, hitH = 60;
+            const hitW = 64, hitH = 72;
             return (
               <TouchableOpacity
                 key={i}
@@ -1150,18 +1157,19 @@ function LobbyScreen({ players, setPlayers, onStartGame, onShop }: {
                   if (!player) setQuickNameFor(i);
                   else if (player.customized) setSeatInfoFor(i);
                 }}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 style={{
                   position: 'absolute',
                   top:  pos.top  * tableH  - hitH / 2,
                   left: pos.left * tableSize - hitW / 2,
                   width: hitW, height: hitH,
                   alignItems: 'center', justifyContent: 'center',
-                  zIndex: 10,
+                  zIndex: 20,
                 }}
               >
                 {player?.customized
                   ? <SeatCharacter player={player} view={pos.view} />
-                  : null /* chairs in image already show + */
+                  : null
                 }
               </TouchableOpacity>
             );
