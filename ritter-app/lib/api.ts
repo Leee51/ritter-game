@@ -53,6 +53,21 @@ export async function updatePath(path: 'light' | 'shadow') {
   return supabase.from('profiles').update({ path }).eq('id', user.id);
 }
 
+export async function saveCharacter(
+  hair: string,
+  hairStyle: number,
+  beard: string,
+  path: 'light' | 'shadow',
+) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  return supabase
+    .from('profiles')
+    .update({ hair, hair_style: hairStyle, beard, path })
+    .eq('id', user.id);
+}
+
 export async function addXP(amount: number, source: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;

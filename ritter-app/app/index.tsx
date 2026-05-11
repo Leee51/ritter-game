@@ -2,10 +2,12 @@ import { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Modal,
   TextInput, ScrollView, Animated, Dimensions,
-  StatusBar, Image, ImageBackground,
+  StatusBar, Image, ImageBackground, ActivityIndicator,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import HeisseFackel from './HeisseFackel';
+import { supabase } from '../lib/supabase';
+import { getMyProfile, signIn, signUp, saveCharacter } from '../lib/api';
 
 const { width } = Dimensions.get('window');
 
@@ -212,12 +214,17 @@ function CharPreview({
   beard: BeardStyle;
   size?: number;
 }) {
-  const charImg   = path === 'light' ? IMG.chars.light[0] : IMG.chars.shadow[0];
-  const hairImg   = HAIR_IMGS[hair]?.[hairStyle];
+  const charImg    = path === 'light' ? IMG.chars.light[0] : IMG.chars.shadow[0];
+  const hairImg    = HAIR_IMGS[hair]?.[hairStyle];
   const beardColor = beardColorFromHair(hair);
-  const beardImg  = beard !== 'none' ? BEARD_IMGS[beardColor]?.[beard] : null;
-  const hairW     = size * 0.70;
-  const beardW    = size * 0.55;
+  const beardImg   = beard !== 'none' ? BEARD_IMGS[beardColor]?.[beard] : null;
+
+  // Container: size × size*1.4
+  // Character: size × size*1.3 anchored to bottom → character top = size*0.1
+  // Head (top ~15% of character): character_top + 0.15*size*1.3 ≈ size*0.1 + 0.20 = size*0.30
+  // Chin (~42% of character height): size*0.1 + 0.42*size*1.3 ≈ size*0.646
+  const hairW  = size * 0.84;
+  const beardW = size * 0.58;
 
   return (
     <View style={{ width: size, height: size * 1.4, alignItems: 'center' }}>
@@ -225,21 +232,23 @@ function CharPreview({
       <Image source={charImg}
         style={{ width: size, height: size * 1.3, position: 'absolute', bottom: 0 }}
         resizeMode="contain" />
-      {/* Haar oben — top-center, no scissors */}
+      {/* Haar — sits on the head (top ~5% from container top) */}
       {hairImg && (
         <Image source={hairImg}
-          style={{ width: hairW, height: size * 0.45, position: 'absolute', top: 0, alignSelf: 'center', zIndex: 3 }}
+          style={{
+            width: hairW, height: size * 0.38,
+            position: 'absolute', top: size * 0.04,
+            alignSelf: 'center', zIndex: 3,
+          }}
           resizeMode="contain" />
       )}
-      {/* Bart — chin level ~58% down from top */}
+      {/* Bart — at chin level (~62% from container top) */}
       {beardImg && (
         <Image source={beardImg}
           style={{
-            width: beardW, height: size * 0.45,
-            position: 'absolute',
-            top: size * 1.4 * 0.58,
-            alignSelf: 'center',
-            zIndex: 3,
+            width: beardW, height: size * 0.40,
+            position: 'absolute', top: size * 0.62,
+            alignSelf: 'center', zIndex: 3,
           }}
           resizeMode="contain" />
       )}
@@ -261,7 +270,8 @@ function SeatCharacter({ player, view }: { player: NonNullable<Player>; view: 'f
   const sz = 44;
 
   // Perspective transforms based on view
-  let charTransform: object[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let charTransform: any[] = [];
   let charOpacity = 1;
   if (view === 'back') {
     charTransform = [{ rotate: '180deg' }];
@@ -294,12 +304,12 @@ function SeatCharacter({ player, view }: { player: NonNullable<Player>; view: 'f
             }}
             resizeMode="contain" />
         )}
-        {/* Bart */}
+        {/* Bart — chin at ~48% of character height */}
         {beardImg && (
           <Image source={beardImg}
             style={{
-              position: 'absolute', bottom: sz * 0.18, alignSelf: 'center',
-              width: sz * 0.6, height: sz * 0.35, zIndex: 3,
+              position: 'absolute', top: sz * 0.46, alignSelf: 'center',
+              width: sz * 0.6, height: sz * 0.32, zIndex: 3,
               transform: charTransform, opacity: charOpacity,
             }}
             resizeMode="contain" />
@@ -330,7 +340,7 @@ function ProfileModal({ visible, player, onClose }: {
         <View style={s.modalBox}>
           <Text style={s.modalTitle}>{player.name}</Text>
           <Text style={[s.modalSub, { marginBottom: 16 }]}>
-            {player.path === 'light' ? '☀️ Licht' : '🌑 Schatten'} · Level {player.level}
+            {player.path === 'light' ? '☀️ GUT' : '🌑 BÖSE'} · Level {player.level}
           </Text>
 
           {/* Charakter Vorschau */}
@@ -482,35 +492,45 @@ function CharacterCreationModal({
               </View>
             )}
 
-            {/* ── SCHRITT 2: Pfad (Licht / Schatten) ── */}
+            {/* ── SCHRITT 2: Pfad (Gut / Böse) ── */}
             {step === 'path' && (
               <View>
                 <Text style={s.modalTitle}>DEIN PFAD</Text>
-                <Text style={s.modalSub}>Diese Wahl ist für immer.</Text>
+                <Text style={s.modalSub}>Diese Wahl prägt deinen Charakter für immer.</Text>
 
-                <View style={{ flexDirection: 'row', gap: 12, marginTop: 20, marginBottom: 24 }}>
-                  {/* LICHT */}
+                <View style={{ flexDirection: 'row', gap: 14, marginTop: 24, marginBottom: 28 }}>
+                  {/* GUT */}
                   <TouchableOpacity
                     style={[s.pathCardBig, path === 'light' && s.pathCardBigActive,
-                      path === 'light' && { borderColor: '#F0C040' }]}
+                      path === 'light' && { borderColor: '#F0C040', backgroundColor: 'rgba(240,192,64,0.08)' }]}
                     onPress={() => setPath('light')}
                   >
-                    <Text style={{ fontSize: 36 }}>☀️</Text>
-                    <Image source={IMG.chars.light[0]}
-                      style={{ width: 70, height: 90 }} resizeMode="contain" />
-                    <Text style={[s.pathCardTitle, { color: '#F0C040' }]}>LICHT</Text>
+                    <Text style={{ fontSize: 52, marginBottom: 10 }}>☀️</Text>
+                    <Text style={[s.pathCardTitle, { color: '#F0C040' }]}>GUT</Text>
+                    <Text style={s.pathCardDesc}>Ehre · Mut · Licht</Text>
+                    {path === 'light' && (
+                      <View style={{ marginTop: 10, width: 24, height: 24, borderRadius: 12,
+                        backgroundColor: '#F0C040', alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ color: '#0A0704', fontWeight: '900', fontSize: 12 }}>✓</Text>
+                      </View>
+                    )}
                   </TouchableOpacity>
 
-                  {/* SCHATTEN */}
+                  {/* BÖSE */}
                   <TouchableOpacity
                     style={[s.pathCardBig, path === 'shadow' && s.pathCardBigActive,
-                      path === 'shadow' && { borderColor: '#8B5CF6' }]}
+                      path === 'shadow' && { borderColor: '#8B5CF6', backgroundColor: 'rgba(139,92,246,0.08)' }]}
                     onPress={() => setPath('shadow')}
                   >
-                    <Text style={{ fontSize: 36 }}>🌑</Text>
-                    <Image source={IMG.chars.shadow[0]}
-                      style={{ width: 70, height: 90 }} resizeMode="contain" />
-                    <Text style={[s.pathCardTitle, { color: '#8B5CF6' }]}>SCHATTEN</Text>
+                    <Text style={{ fontSize: 52, marginBottom: 10 }}>🌑</Text>
+                    <Text style={[s.pathCardTitle, { color: '#8B5CF6' }]}>BÖSE</Text>
+                    <Text style={s.pathCardDesc}>List · Macht · Dunkel</Text>
+                    {path === 'shadow' && (
+                      <View style={{ marginTop: 10, width: 24, height: 24, borderRadius: 12,
+                        backgroundColor: '#8B5CF6', alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ color: '#fff', fontWeight: '900', fontSize: 12 }}>✓</Text>
+                      </View>
+                    )}
                   </TouchableOpacity>
                 </View>
 
@@ -587,7 +607,7 @@ function CharacterCreationModal({
                 <View style={{ alignItems: 'center', marginVertical: 12 }}>
                   <CharPreview path={path} hair={hair} hairStyle={hairStyle} beard={beard} size={80} />
                   <Text style={{ color: 'rgba(201,168,76,0.5)', marginTop: 6, fontSize: 10 }}>
-                    {name} · {path === 'light' ? '☀️ Licht' : '🌑 Schatten'}
+                    {name} · {path === 'light' ? '☀️ GUT' : '🌑 BÖSE'}
                   </Text>
                 </View>
 
@@ -635,18 +655,274 @@ function CharacterCreationModal({
 }
 
 // ═══════════════════════════════════════════════════
+// AUTH SCREEN
+// ═══════════════════════════════════════════════════
+function AuthScreen({
+  onAuthSuccess,
+  onGuestPlay,
+}: {
+  onAuthSuccess: (isNewUser: boolean) => void;
+  onGuestPlay: () => void;
+}) {
+  const [tab, setTab]           = useState<'login' | 'register'>('login');
+  const [email, setEmail]       = useState('');
+  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState('');
+
+  const handleLogin = async () => {
+    if (!email.trim() || !password) return;
+    setLoading(true); setError('');
+    const { error: e } = await signIn(email.trim(), password);
+    setLoading(false);
+    if (e) { setError(e.message); return; }
+    onAuthSuccess(false);
+  };
+
+  const handleRegister = async () => {
+    if (!username.trim() || !email.trim() || !password) return;
+    setLoading(true); setError('');
+    const { error: e } = await signUp(email.trim(), password, username.trim());
+    setLoading(false);
+    if (e) { setError(e.message); return; }
+    onAuthSuccess(true);
+  };
+
+  return (
+    <View style={s.container}>
+      <StatusBar barStyle="light-content" />
+      <ImageBackground source={IMG.background} style={StyleSheet.absoluteFill} resizeMode="cover">
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.76)' }]} />
+      </ImageBackground>
+
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 28 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Titel */}
+        <Text style={[s.appTitle, { fontSize: 30, marginBottom: 4, textAlign: 'center' }]}>
+          ⚔ KNIGHT'S PASS
+        </Text>
+        <Text style={[s.appSub, { marginBottom: 40 }]}>DIE TAVERNE</Text>
+
+        <View style={[s.modalBox, { width: '100%' }]}>
+
+          {/* Tabs */}
+          <View style={{ flexDirection: 'row', marginBottom: 24, borderRadius: 10, overflow: 'hidden',
+            borderWidth: 1, borderColor: 'rgba(201,168,76,0.2)' }}>
+            {(['login', 'register'] as const).map(t => (
+              <TouchableOpacity key={t} onPress={() => { setTab(t); setError(''); }} style={{
+                flex: 1, padding: 13, alignItems: 'center',
+                backgroundColor: tab === t ? 'rgba(201,168,76,0.15)' : 'transparent',
+              }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', letterSpacing: 2,
+                  color: tab === t ? '#C9A84C' : 'rgba(255,255,255,0.3)' }}>
+                  {t === 'login' ? 'ANMELDEN' : 'REGISTRIEREN'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Username — nur bei Registrierung */}
+          {tab === 'register' && (
+            <TextInput
+              style={s.input}
+              placeholder="Benutzername..."
+              placeholderTextColor="rgba(255,255,255,0.25)"
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+              maxLength={20}
+            />
+          )}
+
+          <TextInput
+            style={s.input}
+            placeholder="E-Mail..."
+            placeholderTextColor="rgba(255,255,255,0.25)"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+          <TextInput
+            style={s.input}
+            placeholder="Passwort..."
+            placeholderTextColor="rgba(255,255,255,0.25)"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            onSubmitEditing={tab === 'login' ? handleLogin : handleRegister}
+          />
+
+          {/* Fehlermeldung */}
+          {!!error && (
+            <Text style={{ color: '#EF4444', fontSize: 11, textAlign: 'center', marginBottom: 10 }}>
+              {error}
+            </Text>
+          )}
+
+          <TouchableOpacity
+            style={[s.scrollStartBtn, loading && { opacity: 0.55 }]}
+            onPress={tab === 'login' ? handleLogin : handleRegister}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#0A0704" />
+            ) : (
+              <Text style={s.scrollStartText}>
+                {tab === 'login' ? '⚔ EINTRETEN' : '⚔ KONTO ERSTELLEN'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Gast spielen */}
+        <TouchableOpacity onPress={onGuestPlay} style={{ marginTop: 28, alignItems: 'center', padding: 12 }}>
+          <Text style={{ color: 'rgba(201,168,76,0.55)', fontSize: 13, letterSpacing: 1 }}>
+            🎫 Als Gast spielen
+          </Text>
+          <Text style={{ color: 'rgba(255,255,255,0.2)', fontSize: 10, marginTop: 3 }}>
+            Kein Konto nötig — Fortschritt wird nicht gespeichert
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </View>
+  );
+}
+
+// ═══════════════════════════════════════════════════
 // HAUPT APP
 // ═══════════════════════════════════════════════════
 export default function App() {
-  const [screen, setScreen]         = useState<'lobby' | 'game' | 'shop'>('lobby');
-  const [activeGame, setActiveGame] = useState<string | null>(null);
-  const [lobbyPlayers, setLobbyPlayers] = useState<Player[]>([
-    { name: '', path: 'light', level: 3, hair: 'blonde', hairStyle: 0, beard: 'none', customized: false },
-    null, null, null, null, null,
-  ]);
+  type AppState = 'loading' | 'auth' | 'createChar' | 'lobby' | 'game' | 'shop';
+  const [appState, setAppState]       = useState<AppState>('loading');
+  const [activeGame, setActiveGame]   = useState<string | null>(null);
+  const [isGuest, setIsGuest]         = useState(false);
+  const [lobbyPlayers, setLobbyPlayers] = useState<Player[]>([null, null, null, null, null, null]);
 
-  if (screen === 'shop') return <ShopScreen onBack={() => setScreen('lobby')} />;
-  if (screen === 'game' && activeGame === 'heisse_fackel') {
+  // ── beim Start: Supabase Session prüfen ──
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        await loadProfile();
+      } else {
+        setAppState('auth');
+      }
+    } catch {
+      setAppState('auth');
+    }
+  };
+
+  const loadProfile = async () => {
+    try {
+      const profile = await getMyProfile();
+      if (profile && profile.hair) {
+        // Profil mit Charakter vorhanden → direkt in Lobby
+        const player: NonNullable<Player> = {
+          name: profile.username,
+          path: profile.path,
+          level: profile.level,
+          hair: profile.hair as HairColor,
+          hairStyle: (profile.hair_style ?? 0) as HairStyle,
+          beard: (profile.beard ?? 'none') as BeardStyle,
+          customized: true,
+        };
+        setLobbyPlayers([player, null, null, null, null, null]);
+        setAppState('lobby');
+      } else if (profile) {
+        // Registriert, aber noch kein Charakter
+        setAppState('createChar');
+      } else {
+        setAppState('auth');
+      }
+    } catch {
+      setAppState('auth');
+    }
+  };
+
+  const handleAuthSuccess = (isNewUser: boolean) => {
+    if (isNewUser) {
+      setAppState('createChar');
+    } else {
+      loadProfile();
+    }
+  };
+
+  const handleCharCreated = async (data: {
+    name: string; path: 'light' | 'shadow'; hair: HairColor; hairStyle: HairStyle; beard: BeardStyle;
+  }) => {
+    // Charakter in Supabase speichern (nur wenn kein Gast)
+    if (!isGuest) {
+      await saveCharacter(data.hair, data.hairStyle, data.beard, data.path);
+    }
+    const profile = await getMyProfile().catch(() => null);
+    const player: NonNullable<Player> = {
+      name: profile?.username ?? data.name,
+      path: data.path,
+      level: profile?.level ?? 1,
+      hair: data.hair,
+      hairStyle: data.hairStyle,
+      beard: data.beard,
+      customized: true,
+    };
+    setLobbyPlayers([player, null, null, null, null, null]);
+    setAppState('lobby');
+  };
+
+  // ── Loading Screen ──
+  if (appState === 'loading') {
+    return (
+      <View style={[s.container, { alignItems: 'center', justifyContent: 'center' }]}>
+        <StatusBar barStyle="light-content" />
+        <ImageBackground source={IMG.background} style={StyleSheet.absoluteFill} resizeMode="cover">
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.76)' }]} />
+        </ImageBackground>
+        <Text style={[s.appTitle, { fontSize: 28, textAlign: 'center' }]}>⚔ KNIGHT'S PASS</Text>
+        <ActivityIndicator color="#C9A84C" style={{ marginTop: 24 }} />
+      </View>
+    );
+  }
+
+  // ── Auth Screen ──
+  if (appState === 'auth') {
+    return (
+      <AuthScreen
+        onAuthSuccess={handleAuthSuccess}
+        onGuestPlay={() => { setIsGuest(true); setAppState('createChar'); }}
+      />
+    );
+  }
+
+  // ── Charakter Erstellen ──
+  if (appState === 'createChar') {
+    return (
+      <View style={s.container}>
+        <StatusBar barStyle="light-content" />
+        <ImageBackground source={IMG.background} style={StyleSheet.absoluteFill} resizeMode="cover">
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.76)' }]} />
+        </ImageBackground>
+        <CharacterCreationModal
+          visible={true}
+          isMainPlayer={true}
+          initialStep="name"
+          onConfirm={handleCharCreated}
+        />
+      </View>
+    );
+  }
+
+  // ── Shop ──
+  if (appState === 'shop') return <ShopScreen onBack={() => setAppState('lobby')} />;
+
+  // ── Spiel ──
+  if (appState === 'game' && activeGame === 'heisse_fackel') {
     return (
       <HeisseFackel
         players={lobbyPlayers.filter(Boolean).map(p => ({
@@ -654,16 +930,18 @@ export default function App() {
           avatar: p!.path === 'light' ? '☀️' : '🌑',
           level: p!.level,
         }))}
-        onBack={() => { setScreen('lobby'); setActiveGame(null); }}
+        onBack={() => { setAppState('lobby'); setActiveGame(null); }}
       />
     );
   }
+
+  // ── Lobby ──
   return (
     <LobbyScreen
       players={lobbyPlayers}
       setPlayers={setLobbyPlayers}
-      onStartGame={(id) => { setActiveGame(id); setScreen('game'); }}
-      onShop={() => setScreen('shop')}
+      onStartGame={(id) => { setActiveGame(id); setAppState('game'); }}
+      onShop={() => setAppState('shop')}
     />
   );
 }
@@ -686,12 +964,7 @@ function LobbyScreen({ players, setPlayers, onStartGame, onShop }: {
   const [difficulty, setDifficulty]     = useState<1|2|3>(1);
   const scrollAnim                      = useRef(new Animated.Value(0)).current;
 
-  // Hauptspieler-Creator beim ersten Start — only if not yet named/customized
-  useEffect(() => {
-    if (!players[0] || (players[0] && !players[0].customized && players[0].name === '')) {
-      setCreationFor(0);
-    }
-  }, []);
+  // Kein Auto-Creator mehr — App-State steuert den Hauptspieler-Flow
 
   const handleCreationConfirm = (idx: number, data: {
     name: string; path: 'light' | 'shadow'; hair: HairColor; hairStyle: HairStyle; beard: BeardStyle;
@@ -879,7 +1152,7 @@ function LobbyScreen({ players, setPlayers, onStartGame, onShop }: {
                       </View>
                       <View style={[s.infoBadge, { borderColor: p.path === 'light' ? '#F0C040' : '#8B5CF6' }]}>
                         <Text style={[s.infoBadgeText, { color: p.path === 'light' ? '#F0C040' : '#8B5CF6' }]}>
-                          {p.path === 'light' ? '☀️ Licht' : '🌑 Schatten'}
+                          {p.path === 'light' ? '☀️ GUT' : '🌑 BÖSE'}
                         </Text>
                       </View>
                     </View>

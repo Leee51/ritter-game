@@ -19,6 +19,9 @@ export interface Database {
           silver: number;
           gold: number;
           avatar_url: string | null;
+          hair: string | null;               // HairColor
+          hair_style: number | null;         // 0 | 1 | 2
+          beard: string | null;              // BeardStyle
           created_at: string;
           updated_at: string;
         };
