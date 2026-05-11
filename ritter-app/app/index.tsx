@@ -57,25 +57,111 @@ const IMG = {
 };
 
 // ═══════════════════════════════════════════════════
+// BART & HAAR BILDER
+// ═══════════════════════════════════════════════════
+// Bärte: 4 Farben × 6 Stile
+const BEARD_IMGS: Record<string, Record<string, any>> = {
+  brown: {
+    goatee: require('../assets/images/beards/brown_goatee.png'),
+    short:  require('../assets/images/beards/brown_short.png'),
+    medium: require('../assets/images/beards/brown_medium.png'),
+    full:   require('../assets/images/beards/brown_full.png'),
+    large:  require('../assets/images/beards/brown_large.png'),
+    viking: require('../assets/images/beards/brown_viking.png'),
+  },
+  black: {
+    goatee: require('../assets/images/beards/black_goatee.png'),
+    short:  require('../assets/images/beards/black_short.png'),
+    medium: require('../assets/images/beards/black_medium.png'),
+    full:   require('../assets/images/beards/black_full.png'),
+    large:  require('../assets/images/beards/black_large.png'),
+    viking: require('../assets/images/beards/black_viking.png'),
+  },
+  blonde: {
+    goatee: require('../assets/images/beards/blonde_goatee.png'),
+    short:  require('../assets/images/beards/blonde_short.png'),
+    medium: require('../assets/images/beards/blonde_medium.png'),
+    full:   require('../assets/images/beards/blonde_full.png'),
+    large:  require('../assets/images/beards/blonde_large.png'),
+    viking: require('../assets/images/beards/blonde_viking.png'),
+  },
+  red: {
+    goatee: require('../assets/images/beards/red_goatee.png'),
+    short:  require('../assets/images/beards/red_short.png'),
+    medium: require('../assets/images/beards/red_medium.png'),
+    full:   require('../assets/images/beards/red_full.png'),
+    large:  require('../assets/images/beards/red_large.png'),
+    viking: require('../assets/images/beards/red_viking.png'),
+  },
+};
+
+// Haare: 4 Farben × 3 Stile
+const HAIR_IMGS: Record<string, any[]> = {
+  blonde: [
+    require('../assets/images/hair/blonde_0.png'),
+    require('../assets/images/hair/blonde_1.png'),
+    require('../assets/images/hair/blonde_2.png'),
+  ],
+  brown: [
+    require('../assets/images/hair/brown_0.png'),
+    require('../assets/images/hair/brown_1.png'),
+    require('../assets/images/hair/brown_2.png'),
+  ],
+  red: [
+    require('../assets/images/hair/red_0.png'),
+    require('../assets/images/hair/red_1.png'),
+    require('../assets/images/hair/red_2.png'),
+  ],
+  white: [
+    require('../assets/images/hair/white_0.png'),
+    require('../assets/images/hair/white_1.png'),
+    require('../assets/images/hair/white_2.png'),
+  ],
+  // Schwarz und Blau nutzen brown/black als Fallback
+  black: [
+    require('../assets/images/hair/brown_0.png'),
+    require('../assets/images/hair/brown_1.png'),
+    require('../assets/images/hair/brown_2.png'),
+  ],
+  blue: [
+    require('../assets/images/hair/brown_0.png'),
+    require('../assets/images/hair/brown_1.png'),
+    require('../assets/images/hair/brown_2.png'),
+  ],
+};
+
+// Bart-Farbe aus Haarfarbe ableiten
+function beardColorFromHair(hair: HairColor): string {
+  if (hair === 'black' || hair === 'blue') return 'black';
+  if (hair === 'red') return 'red';
+  if (hair === 'blonde' || hair === 'white') return 'blonde';
+  return 'brown';
+}
+
+// ═══════════════════════════════════════════════════
 // TYPEN & KONSTANTEN
 // ═══════════════════════════════════════════════════
-export type HairColor = 'blonde' | 'brown' | 'black' | 'red' | 'white' | 'blue';
-export type BeardStyle = 'none' | 'short' | 'long' | 'viking';
+export type HairColor  = 'blonde' | 'brown' | 'black' | 'red' | 'white' | 'blue';
+export type BeardStyle = 'none' | 'goatee' | 'short' | 'medium' | 'full' | 'large' | 'viking';
+export type HairStyle  = 0 | 1 | 2;
 
 export const HAIR_COLORS: { id: HairColor; label: string; hex: string }[] = [
-  { id: 'blonde', label: 'Blond',    hex: '#E8C84A' },
-  { id: 'brown',  label: 'Braun',    hex: '#7B3F00' },
-  { id: 'black',  label: 'Schwarz',  hex: '#2A2A2A' },
-  { id: 'red',    label: 'Rot',      hex: '#C0392B' },
-  { id: 'white',  label: 'Weiß',     hex: '#D8D8D8' },
-  { id: 'blue',   label: 'Blau',     hex: '#2471A3' },
+  { id: 'blonde', label: 'Blond',   hex: '#E8C84A' },
+  { id: 'brown',  label: 'Braun',   hex: '#7B3F00' },
+  { id: 'black',  label: 'Schwarz', hex: '#2A2A2A' },
+  { id: 'red',    label: 'Rot',     hex: '#C0392B' },
+  { id: 'white',  label: 'Weiß',    hex: '#D8D8D8' },
+  { id: 'blue',   label: 'Blau',    hex: '#2471A3' },
 ];
 
-export const BEARDS: { id: BeardStyle; label: string; icon: string }[] = [
-  { id: 'none',   label: 'Kein Bart',  icon: '🧑' },
-  { id: 'short',  label: 'Kurz',       icon: '🧔' },
-  { id: 'long',   label: 'Lang',       icon: '🧔‍♂️' },
-  { id: 'viking', label: 'Wikinger',   icon: '⚔️' },
+export const BEARD_STYLES: { id: BeardStyle; label: string }[] = [
+  { id: 'none',   label: 'Kein Bart' },
+  { id: 'goatee', label: 'Ziegenbart' },
+  { id: 'short',  label: 'Kurz' },
+  { id: 'medium', label: 'Mittel' },
+  { id: 'full',   label: 'Voll' },
+  { id: 'large',  label: 'Lang' },
+  { id: 'viking', label: 'Wikinger' },
 ];
 
 export type Player = {
@@ -83,6 +169,7 @@ export type Player = {
   path: 'light' | 'shadow';
   level: number;
   hair: HairColor;
+  hairStyle: HairStyle;
   beard: BeardStyle;
   customized: boolean;
 } | null;
@@ -113,58 +200,77 @@ function getTableLevel(level: number): keyof typeof IMG.tables {
 }
 
 // ═══════════════════════════════════════════════════
-// CHARAKTER-VORSCHAU (klein, mit Haar & Bart)
+// CHARAKTER-VORSCHAU (mit echten Haar & Bart Bildern)
 // ═══════════════════════════════════════════════════
 function CharPreview({
-  path, hair, beard, size = 70,
+  path, hair, hairStyle = 0, beard, size = 70,
 }: {
-  path: 'light' | 'shadow'; hair: HairColor; beard: BeardStyle; size?: number;
+  path: 'light' | 'shadow';
+  hair: HairColor;
+  hairStyle?: HairStyle;
+  beard: BeardStyle;
+  size?: number;
 }) {
-  const hairHex = HAIR_COLORS.find(h => h.id === hair)?.hex ?? '#E8C84A';
-  const beardIcon = BEARDS.find(b => b.id === beard)?.icon ?? '🧑';
-  const charImg = path === 'light' ? IMG.chars.light[0] : IMG.chars.shadow[0];
+  const charImg   = path === 'light' ? IMG.chars.light[0] : IMG.chars.shadow[0];
+  const hairImg   = HAIR_IMGS[hair]?.[hairStyle];
+  const beardColor = beardColorFromHair(hair);
+  const beardImg  = beard !== 'none' ? BEARD_IMGS[beardColor]?.[beard] : null;
 
   return (
-    <View style={{ width: size, height: size * 1.3, alignItems: 'center' }}>
-      {/* Haar-Streifen oben */}
-      <View style={{
-        position: 'absolute', top: 0, left: 4, right: 4, height: 6,
-        borderRadius: 3, backgroundColor: hairHex, zIndex: 2,
-      }} />
+    <View style={{ width: size, height: size * 1.4, alignItems: 'center' }}>
       {/* Charakter */}
-      <Image source={charImg} style={{ width: size, height: size * 1.2 }} resizeMode="contain" />
+      <Image source={charImg}
+        style={{ width: size, height: size * 1.3, position: 'absolute', bottom: 0 }}
+        resizeMode="contain" />
+      {/* Haar oben */}
+      {hairImg && (
+        <Image source={hairImg}
+          style={{ width: size * 0.8, height: size * 0.45, position: 'absolute', top: 0, zIndex: 3 }}
+          resizeMode="contain" />
+      )}
       {/* Bart unten */}
-      {beard !== 'none' && (
-        <Text style={{
-          position: 'absolute', bottom: 0, fontSize: size * 0.22,
-          textAlign: 'center', zIndex: 2,
-        }}>{beardIcon}</Text>
+      {beardImg && (
+        <Image source={beardImg}
+          style={{ width: size * 0.65, height: size * 0.45, position: 'absolute', bottom: size * 0.22, zIndex: 3 }}
+          resizeMode="contain" />
       )}
     </View>
   );
 }
 
 // ═══════════════════════════════════════════════════
-// CHARAKTER AM TISCH (mit Haar-Border & Bart)
+// CHARAKTER AM TISCH
 // ═══════════════════════════════════════════════════
 function SeatCharacter({ player }: { player: NonNullable<Player> }) {
-  const hairHex = HAIR_COLORS.find(h => h.id === player.hair)?.hex ?? '#E8C84A';
-  const beardIcon = BEARDS.find(b => b.id === player.beard)?.icon;
-  const charImg = player.path === 'light'
+  const hairHex   = HAIR_COLORS.find(h => h.id === player.hair)?.hex ?? '#E8C84A';
+  const charImg   = player.path === 'light'
     ? IMG.chars.light[Math.min(player.level - 1, 8)]
     : IMG.chars.shadow[Math.min(player.level - 1, 8)];
+  const hairImg   = HAIR_IMGS[player.hair]?.[player.hairStyle ?? 0];
+  const beardColor = beardColorFromHair(player.hair);
+  const beardImg  = player.beard !== 'none' ? BEARD_IMGS[beardColor]?.[player.beard] : null;
+  const sz = 44;
 
   return (
     <View style={{ alignItems: 'center' }}>
       <View style={{
-        borderWidth: 2, borderColor: hairHex, borderRadius: 6,
+        borderWidth: 1.5, borderColor: hairHex, borderRadius: 6,
         backgroundColor: 'transparent', padding: 1,
+        width: sz + 4, height: sz * 1.3 + 4,
       }}>
-        <Image source={charImg} style={s.seatChar} resizeMode="contain" />
-        {player.beard !== 'none' && (
-          <Text style={{ position: 'absolute', bottom: -4, alignSelf: 'center', fontSize: 10 }}>
-            {beardIcon}
-          </Text>
+        {/* Charakter */}
+        <Image source={charImg} style={{ width: sz, height: sz * 1.25 }} resizeMode="contain" />
+        {/* Haar */}
+        {hairImg && (
+          <Image source={hairImg}
+            style={{ position: 'absolute', top: 0, alignSelf: 'center', width: sz * 0.75, height: sz * 0.4, zIndex: 3 }}
+            resizeMode="contain" />
+        )}
+        {/* Bart */}
+        {beardImg && (
+          <Image source={beardImg}
+            style={{ position: 'absolute', bottom: sz * 0.18, alignSelf: 'center', width: sz * 0.6, height: sz * 0.35, zIndex: 3 }}
+            resizeMode="contain" />
         )}
       </View>
       <Text style={s.seatName}>{player.name}</Text>
@@ -184,14 +290,15 @@ function CharacterCreationModal({
 }: {
   visible: boolean;
   isMainPlayer: boolean;
-  onConfirm: (data: { name: string; path: 'light' | 'shadow'; hair: HairColor; beard: BeardStyle }) => void;
+  onConfirm: (data: { name: string; path: 'light' | 'shadow'; hair: HairColor; hairStyle: HairStyle; beard: BeardStyle }) => void;
   onCancel?: () => void;
 }) {
-  const [step, setStep]     = useState<'name' | 'path' | 'hair' | 'beard'>('name');
-  const [name, setName]     = useState('');
-  const [path, setPath]     = useState<'light' | 'shadow'>('light');
-  const [hair, setHair]     = useState<HairColor>('blonde');
-  const [beard, setBeard]   = useState<BeardStyle>('none');
+  const [step, setStep]         = useState<'name' | 'path' | 'hair' | 'beard'>('name');
+  const [name, setName]         = useState('');
+  const [path, setPath]         = useState<'light' | 'shadow'>('light');
+  const [hair, setHair]         = useState<HairColor>('blonde');
+  const [hairStyle, setHairStyle] = useState<HairStyle>(0);
+  const [beard, setBeard]       = useState<BeardStyle>('none');
 
   // Animation: Seite wechseln
   const slideAnim = useRef(new Animated.Value(0)).current;
@@ -292,42 +399,53 @@ function CharacterCreationModal({
               </View>
             )}
 
-            {/* ── SCHRITT 3: Haarfarbe ── */}
+            {/* ── SCHRITT 3: Haarfarbe & Stil ── */}
             {step === 'hair' && (
               <View>
-                <Text style={s.modalTitle}>💇 HAARFARBE</Text>
-                <Text style={s.modalSub}>Wähle deine Farbe — ein für alle Mal.</Text>
+                <Text style={s.modalTitle}>💇 HAAR</Text>
+                <Text style={s.modalSub}>Farbe und Stil — für immer.</Text>
 
                 {/* Vorschau */}
-                <View style={{ alignItems: 'center', marginVertical: 16 }}>
-                  <CharPreview path={path} hair={hair} beard={beard} size={80} />
-                  <View style={{
-                    marginTop: 8, paddingHorizontal: 14, paddingVertical: 4,
-                    borderRadius: 20, backgroundColor: hairHex + '33',
-                    borderWidth: 1, borderColor: hairHex,
-                  }}>
-                    <Text style={{ color: hairHex, fontSize: 11, fontWeight: '700' }}>
-                      {HAIR_COLORS.find(h => h.id === hair)?.label}
-                    </Text>
-                  </View>
+                <View style={{ alignItems: 'center', marginVertical: 12 }}>
+                  <CharPreview path={path} hair={hair} hairStyle={hairStyle} beard={beard} size={80} />
                 </View>
 
                 {/* Farbauswahl */}
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12,
-                  justifyContent: 'center', marginBottom: 24 }}>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10,
+                  justifyContent: 'center', marginBottom: 14 }}>
                   {HAIR_COLORS.map(hc => (
-                    <TouchableOpacity key={hc.id} onPress={() => setHair(hc.id)}>
+                    <TouchableOpacity key={hc.id}
+                      onPress={() => setHair(hc.id)}
+                      style={{ alignItems: 'center' }}>
                       <View style={[s.colorSwatch, { backgroundColor: hc.hex },
                         hair === hc.id && s.colorSwatchSelected,
                         hc.id === 'white' && { borderColor: '#888' },
                       ]}>
                         {hair === hc.id && (
-                          <Text style={{ fontSize: 14, color: hc.id === 'white' ? '#333' : '#fff' }}>✓</Text>
+                          <Text style={{ fontSize: 12, color: hc.id === 'white' ? '#333' : '#fff' }}>✓</Text>
                         )}
                       </View>
-                      <Text style={[s.colorLabel, { color: hair === hc.id ? hc.hex : 'rgba(255,255,255,0.35)' }]}>
+                      <Text style={[s.colorLabel, { color: hair === hc.id ? hc.hex : 'rgba(255,255,255,0.3)' }]}>
                         {hc.label}
                       </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Stil-Auswahl (3 Varianten mit echten Haar-Bildern) */}
+                <Text style={[s.modalSub, { marginBottom: 8 }]}>FRISUR</Text>
+                <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'center', marginBottom: 20 }}>
+                  {([0, 1, 2] as HairStyle[]).map(si => (
+                    <TouchableOpacity key={si}
+                      onPress={() => setHairStyle(si)}
+                      style={[s.hairStyleBtn, hairStyle === si && s.hairStyleBtnActive]}>
+                      <Image source={HAIR_IMGS[hair]?.[si]}
+                        style={{ width: 52, height: 36 }} resizeMode="contain" />
+                      {hairStyle === si && (
+                        <View style={s.hairStyleCheck}>
+                          <Text style={{ fontSize: 9, color: '#0A0704', fontWeight: '900' }}>✓</Text>
+                        </View>
+                      )}
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -345,34 +463,41 @@ function CharacterCreationModal({
                 <Text style={s.modalSub}>Dein letzter Schritt, Recke.</Text>
 
                 {/* Vorschau */}
-                <View style={{ alignItems: 'center', marginVertical: 16 }}>
-                  <CharPreview path={path} hair={hair} beard={beard} size={80} />
-                  <Text style={{ color: 'rgba(201,168,76,0.6)', marginTop: 8, fontSize: 11 }}>
+                <View style={{ alignItems: 'center', marginVertical: 12 }}>
+                  <CharPreview path={path} hair={hair} hairStyle={hairStyle} beard={beard} size={80} />
+                  <Text style={{ color: 'rgba(201,168,76,0.5)', marginTop: 6, fontSize: 10 }}>
                     {name} · {path === 'light' ? '☀️ Licht' : '🌑 Schatten'}
                   </Text>
                 </View>
 
-                {/* Bart-Auswahl */}
-                <View style={{ gap: 8, marginBottom: 20 }}>
-                  {BEARDS.map(b => (
-                    <TouchableOpacity
-                      key={b.id}
-                      style={[s.beardOption, beard === b.id && s.beardOptionActive]}
-                      onPress={() => setBeard(b.id)}
-                    >
-                      <Text style={{ fontSize: 22 }}>{b.icon}</Text>
-                      <Text style={[s.beardLabel, beard === b.id && { color: '#C9A84C' }]}>
-                        {b.label}
-                      </Text>
-                      {beard === b.id && <Text style={{ color: '#C9A84C', marginLeft: 'auto' }}>✓</Text>}
-                    </TouchableOpacity>
-                  ))}
+                {/* Bart-Auswahl: 2-Spalten Grid mit echten Bildern */}
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                  {BEARD_STYLES.map(b => {
+                    const beardColor = beardColorFromHair(hair);
+                    const img = b.id !== 'none' ? BEARD_IMGS[beardColor]?.[b.id] : null;
+                    return (
+                      <TouchableOpacity
+                        key={b.id}
+                        onPress={() => setBeard(b.id)}
+                        style={[s.beardImgBtn, beard === b.id && s.beardImgBtnActive]}
+                      >
+                        {img ? (
+                          <Image source={img} style={{ width: 52, height: 46 }} resizeMode="contain" />
+                        ) : (
+                          <Text style={{ fontSize: 22 }}>🚫</Text>
+                        )}
+                        <Text style={[s.beardImgLabel, beard === b.id && { color: '#C9A84C' }]}>
+                          {b.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
 
                 {/* FERTIG */}
                 <TouchableOpacity
                   style={[s.scrollStartBtn, { backgroundColor: '#C9A84C' }]}
-                  onPress={() => onConfirm({ name: name.trim(), path, hair, beard })}
+                  onPress={() => onConfirm({ name: name.trim(), path, hair, hairStyle, beard })}
                 >
                   <Text style={[s.scrollStartText, { color: '#0A0704' }]}>
                     ⚔ RECKE ERSCHAFFEN
@@ -416,7 +541,7 @@ function LobbyScreen({ onStartGame, onShop }: {
 }) {
   const [players, setPlayers] = useState<Player[]>([
     // Hauptspieler: noch nicht konfiguriert → zeigt sofort den Creator
-    { name: '', path: 'light', level: 3, hair: 'blonde', beard: 'none', customized: false },
+    { name: '', path: 'light', level: 3, hair: 'blonde', hairStyle: 0, beard: 'none', customized: false },
     null, null, null, null, null,
   ]);
 
@@ -436,13 +561,13 @@ function LobbyScreen({ onStartGame, onShop }: {
   }, []);
 
   const handleCreationConfirm = (idx: number, data: {
-    name: string; path: 'light' | 'shadow'; hair: HairColor; beard: BeardStyle;
+    name: string; path: 'light' | 'shadow'; hair: HairColor; hairStyle: HairStyle; beard: BeardStyle;
   }) => {
     const updated = [...players];
     updated[idx] = {
       name: data.name, path: data.path,
       level: idx === 0 ? 3 : 1,
-      hair: data.hair, beard: data.beard,
+      hair: data.hair, hairStyle: data.hairStyle, beard: data.beard,
       customized: true,
     };
     setPlayers(updated);
@@ -597,7 +722,7 @@ function LobbyScreen({ onStartGame, onShop }: {
                 <>
                   <Text style={s.modalTitle}>{p.name}</Text>
                   <View style={{ alignItems: 'center', marginBottom: 16 }}>
-                    <CharPreview path={p.path} hair={p.hair} beard={p.beard} size={80} />
+                    <CharPreview path={p.path} hair={p.hair} hairStyle={p.hairStyle ?? 0} beard={p.beard} size={80} />
                     <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
                       <View style={[s.infoBadge, { borderColor: hairHex }]}>
                         <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: hairHex, marginRight: 5 }} />
@@ -925,14 +1050,36 @@ const s = StyleSheet.create({
 
   // Haarfarbe
   colorSwatch: {
-    width: 44, height: 44, borderRadius: 22,
+    width: 40, height: 40, borderRadius: 20,
     borderWidth: 2, borderColor: 'transparent',
     alignItems: 'center', justifyContent: 'center',
   },
   colorSwatchSelected: { borderColor: '#fff', transform: [{ scale: 1.15 }] },
-  colorLabel: { fontSize: 9, textAlign: 'center', marginTop: 4, fontWeight: '600' },
+  colorLabel: { fontSize: 8, textAlign: 'center', marginTop: 3, fontWeight: '600' },
 
-  // Bart
+  // Haar-Stil
+  hairStyleBtn: {
+    padding: 8, borderRadius: 10, borderWidth: 1.5,
+    borderColor: 'rgba(201,168,76,0.15)',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  hairStyleBtnActive: { borderColor: '#C9A84C', backgroundColor: 'rgba(201,168,76,0.1)' },
+  hairStyleCheck: {
+    position: 'absolute', top: 3, right: 3, width: 14, height: 14,
+    borderRadius: 7, backgroundColor: '#C9A84C', alignItems: 'center', justifyContent: 'center',
+  },
+
+  // Bart Image Grid
+  beardImgBtn: {
+    width: (width * 0.9 - 48 - 24) / 4,
+    alignItems: 'center', padding: 6, borderRadius: 10,
+    borderWidth: 1.5, borderColor: 'rgba(201,168,76,0.12)',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  beardImgBtnActive: { borderColor: '#C9A84C', backgroundColor: 'rgba(201,168,76,0.1)' },
+  beardImgLabel: { fontSize: 7, color: 'rgba(255,255,255,0.4)', marginTop: 3, textAlign: 'center', fontWeight: '600' },
+
+  // Legacy (kept for compat)
   beardOption: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     padding: 12, borderRadius: 10,
