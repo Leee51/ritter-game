@@ -45,4 +45,5 @@ ritter-app/node_modules/
 ritter-app/.expo/
 ritter-app/android/
 ritter-app/ios/
-ritter-app/.env*
+ritter-app/.env
+ritter-app/.env.local
