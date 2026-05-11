@@ -179,10 +179,10 @@ export type Player = {
 
 // 4 Items auf die braune Tischfläche — je ein Quadrant der Mitte
 const GAMES = [
-  { id: 'heisse_fackel', name: 'Heiße Fackel', locked: false, tablePos: { top: 0.44, left: 0.33 } },
-  { id: 'werwolf',       name: 'Werwolf',       locked: true,  tablePos: { top: 0.36, left: 0.58 } },
-  { id: 'imposter',      name: 'Imposter',       locked: true,  tablePos: { top: 0.55, left: 0.60 } },
-  { id: 'kutschen',      name: 'Kutschen Fahrt', locked: true,  tablePos: { top: 0.54, left: 0.35 } },
+  { id: 'heisse_fackel', name: 'Heiße Fackel', locked: false, tablePos: { top: 0.42, left: 0.36 } },
+  { id: 'werwolf',       name: 'Werwolf',       locked: true,  tablePos: { top: 0.40, left: 0.60 } },
+  { id: 'imposter',      name: 'Imposter',       locked: true,  tablePos: { top: 0.56, left: 0.62 } },
+  { id: 'kutschen',      name: 'Kutschen Fahrt', locked: true,  tablePos: { top: 0.55, left: 0.37 } },
 ];
 
 // Stühle — transparent über die bereits im Tischbild eingezeichneten Stühle
@@ -215,12 +215,14 @@ const CHAR_ROWS = 2;
 const CHAR_W    = 1374;
 const CHAR_H    = 1145;
 
-// [spalte, zeile, spiegeln?]
-const CHAR_VIEW: Record<'front'|'back'|'left'|'right', [number,number,boolean]> = {
-  front: [1, 0, false],
-  back:  [2, 1, false],
-  right: [2, 0, false],
-  left:  [2, 0, true ],  // Spiegel der rechten Seite
+// [spalte, zeile]  — echte Zellen aus dem 5×2 Sheet
+// Zeile 0: diagonal-links | FRONT | RECHTS | diag-rechts | hinten-rechts
+// Zeile 1: LINKS          | front2| ZURÜCK | hinten-links | rechts-vorne
+const CHAR_VIEW: Record<'front'|'back'|'left'|'right', [number, number]> = {
+  front: [1, 0],
+  back:  [2, 1],
+  right: [2, 0],
+  left:  [0, 1],  // echte Linksansicht aus Sprite Sheet
 };
 
 function CharSprite({
@@ -235,21 +237,24 @@ function CharSprite({
     ? IMG.chars.light[Math.min(level - 1, 8)]
     : IMG.chars.shadow[Math.min(level - 1, 8)];
 
-  const cellW  = CHAR_W / CHAR_COLS;          // 274.8
-  const cellH  = CHAR_H / CHAR_ROWS;          // 572.5
-  const aspect = cellW / cellH;               // ≈ 0.48
+  const cellW  = CHAR_W / CHAR_COLS;   // 274.8
+  const cellH  = CHAR_H / CHAR_ROWS;   // 572.5
+  const aspect = cellW / cellH;        // ≈ 0.48
 
   const dispH  = height;
   const dispW  = dispH * aspect;
-  const [col, row, flip] = CHAR_VIEW[view];
+  const [col, row] = CHAR_VIEW[view];
 
   return (
-    <View style={{ width: dispW, height: dispH, overflow: 'hidden',
-      transform: flip ? [{ scaleX: -1 }] : undefined }}>
+    // borderRadius nötig damit overflow:hidden auf Android funktioniert
+    <View style={{
+      width: dispW, height: dispH,
+      overflow: 'hidden', borderRadius: 1,
+    }}>
       <Image
         source={sheet}
         style={{
-          width: dispW * CHAR_COLS,
+          width:  dispW * CHAR_COLS,
           height: dispH * CHAR_ROWS,
           position: 'absolute',
           left: -col * dispW,
@@ -1125,8 +1130,8 @@ function LobbyScreen({ players, setPlayers, onStartGame, onShop }: {
             return (
               <TouchableOpacity key={game.id} onPress={() => openScroll(game)} style={{
                 position: 'absolute',
-                top: game.tablePos.top * tableH - 34,
-                left: game.tablePos.left * tableSize - 30,
+                top: game.tablePos.top * tableH - 26,
+                left: game.tablePos.left * tableSize - 26,
                 alignItems: 'center',
               }}>
                 <View style={[s.gameOnTable, game.locked && { opacity: 0.6 },
@@ -1169,7 +1174,11 @@ function LobbyScreen({ players, setPlayers, onStartGame, onShop }: {
               >
                 {player?.customized
                   ? <SeatCharacter player={player} view={pos.view} />
-                  : null
+                  : (
+                    <View style={s.seatEmpty}>
+                      <Text style={s.seatPlus}>+</Text>
+                    </View>
+                  )
                 }
               </TouchableOpacity>
             );
