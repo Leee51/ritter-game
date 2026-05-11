@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Expo / React Native
+ritter-app/node_modules/
+ritter-app/.expo/
+ritter-app/android/
+ritter-app/ios/
+ritter-app/.env*
